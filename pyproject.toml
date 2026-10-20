@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Modular WeChat group AI assistant scaffold"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = ["python-dotenv>=1.0,<2"]
+dependencies = ["python-dotenv>=1.0,<2", "Pillow>=12,<13"]
 
 [project.scripts]
 wechat-ai-bridge = "wechat_ai_bridge.cli:main"

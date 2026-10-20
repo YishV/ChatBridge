@@ -37,3 +37,10 @@ class ProcessResult:
     reply: str | None = None
     reason: str | None = None
     model_attempts: int = 0
+    meme_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ChatReply:
+    reply: str | None = None
+    meme_id: str | None = None

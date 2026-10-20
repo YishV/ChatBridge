@@ -62,6 +62,27 @@ uv run --extra native wechat-ai-bridge admin status
 
 白名单和暂停动态生效。群聊不能修改白名单、模型配置或系统提示词。
 
+### 场景表情包
+
+DeepSeek 鲸鱼娘支持在文字回复后附带一张静态场景表情图，由同一次模型请求结合最近群聊、人设和情绪选择；没有合适素材时只回文字。首次使用先同步公开素材索引（只同步元数据，不下载图片）：
+
+```powershell
+uv run --extra native wechat-ai-bridge memes sync
+uv run --extra native wechat-ai-bridge memes list
+uv run --extra native wechat-ai-bridge memes check
+```
+
+素材索引保存在 `WECHAT_AI_BRIDGE_MEME_CACHE_DIR`（默认 `data/runtime/memes`）。站点拒绝访问时改从公开仓库 README 的精选 19 张同步，不绕过站点限制；运行到需要发图时再按需下载并转成单帧 GIF，缓存在本机组件限定的 `state/stickers/outgoing`（Git 忽略）。下载或转换失败只保留已发送的文字，不补发、不重试。
+
+`memes check` 只读本地配置和索引，不连接微信组件；组件是否支持表情发送看 `run --check` 的 `memeNativeReady`。
+
+- 每条回复最多一张；只有文字发送并匹配服务器回执后才尝试配图，图片发送状态未知时不重复发送。
+- 每群默认 60 秒图片冷却，最近 5 张不重复；暂停或撤销群授权时配置也会停止。
+- 只支持静态素材；动图、微信原生收藏表情和语音仍未接入。本机组件未报告 `nativeStickerSend` 时不向模型提供配图选项。
+- 素材描述来自公开图库，作为数据提供给模型，不能改变系统规则；群聊正文不会发送给图库站点。
+
+可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
+
 ## 自然参与与数据边界
 
 ### 人设提示词
@@ -76,17 +97,27 @@ uv run --extra native wechat-ai-bridge admin status
 - 原生 `@` 进入直接回答分支；手打 `@名字` 仍按普通消息处理。
 - 群友拍机器人时按人设文字回应；拍别人、自拍和手打“拍一拍”不触发此分支。不执行拍回动作，也不把拍一拍后缀当作提示词。
 - 普通消息结合最近群聊判断是否接话，默认克制，不逐句回应。模型决定沉默、返回空回复或坏格式时不发送。
-- 每群共享最多 20 条、最长 10 分钟的内存上下文，群间隔离。成员使用稳定群内代号与可读取的微信昵称，明确当前说话人和历史回复对象；同名不合并、改名不换身份。只向 DeepSeek 发送白名单群必要上下文和昵称，不发送个人备注或原始微信 ID，不维护完整群聊档案。
+- 授权群的合格发言和确认发送的回复保存到本机 SQLite `chat_history` 表；启动按群恢复最近 50 条，上下文不再按 10 分钟过期。成员使用稳定群内代号与可读取的微信昵称，明确当前说话人和历史回复对象；同名不合并、改名不换身份。只向 DeepSeek 发送当前白名单群受限窗口和必要昵称，不发送个人备注或原始微信 ID。
 - 原生 `@` 和拍机器人共享直接回应分支，默认冷却 5 秒，也受群调用配额限制。普通消息先观察上下文，最后一条发言后约 5 秒合并判断；连续两句会一起考虑，不再因旧的 30 秒冷却直接丢弃。每群每小时最多调用模型 60 次。沉默消息也去重。
 - 只有匹配到实际发出记录的服务器消息 ID 后才记录助手回复上下文。发送失败或状态未知时不自动重发。
 
 账号、核心版本或监听归属变化时停止网关，检查后再启动。群友应事先知道必要群聊上下文会发送至所选模型服务。
 
-后台计数区分 `deferred`（等待合并）、`naturalEvaluated`（合并批次处理）、`silent`（模型沉默）、`rateLimited`（配额/频率限制）和 `modelErrors`。模型故障只记录如 `model_timeout`、`model_http_429`、`model_response_incomplete` 的安全代码，不记录请求、响应正文或密钥。
+后台计数区分 `deferred`（等待合并）、`naturalEvaluated`（合并批次处理）、`silent`（模型沉默）、`rateLimited`（配额/频率限制）和 `modelErrors`。自然参与决策使用结构化工具调用，空回复表示沉默，不记为 `model_response_empty`；真正的网络或格式错误最多重试一次。模型故障只记录如 `model_timeout`、`model_http_429`、`model_response_incomplete` 的安全代码，不记录请求、响应正文或密钥。
 
 模型单次请求默认超时 45 秒、最多输出 1200 token，可用 `.env` 的 `WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS`（1～120 秒）和 `WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS`（128～8192）调整，重启生效。空内容、坏响应 JSON、网络或服务暂时错误最多重试一次；两次都失败则结束本条，下一条仍可正常处理。重试也计入每群每小时配额，微信发送不自动重试。错误类型和尝试次数写入状态库最少审计，不保存模型正文；`modelRetries` 计数表示本批实际发生的额外请求。
 
-成员标识密钥自动保存在状态库旁的 `.members.key` 文件中，保持重启后的代号一致；它不保存群友档案或聊天正文。不要删除或提交该文件。昵称查询失败时继续使用稳定代号。人设文件可照常修改，成员归属由程序独立维护；短期上下文过期或重启后，机器人不会凭空记得已丢失的聊天事实。
+成员标识密钥自动保存在状态库旁的 `.members.key` 文件中，保持重启后的代号一致；密钥文件不保存聊天正文。不要删除或提交该文件；已有聊天存档而密钥缺失时，启动会提示 `member_identity_key_missing_for_history`，需恢复匹配的密钥。昵称查询失败时继续使用稳定代号。人设文件可照常修改，成员归属由程序独立维护。
+
+### 聊天记录与重启恢复
+
+默认数据库为 `data/runtime/chat-state.sqlite3`。使用 DB Browser for SQLite 打开后，在“浏览数据”选择 `chat_history`，可看到群、`role`（user/assistant）、成员代号、昵称、正文、互动类型及接收/确认时间。机器人回复行中的 `member_id` 是回复对象，`message_id` 对应触发消息。
+
+完整记录默认保留在本机，不自动删除。`.env` 的 `WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES=50` 控制每群送入模型的最近窗口（1～200 条，包含双方发言），调整后重启生效；每条模型输入仍最多 1000 字，助手回复最多 800 字。增加保存范围不等于每次把全部存档发给模型。
+
+启动恢复只读历史，不调用模型、不补答旧消息、不恢复待处理批次。模型沉默或失败时仍保存已接收发言，发送失败或状态未知时不写入助手发言。撤销群授权后不加载其历史，存档本身保留。旧版本未保存过的正文不能补回，新版启用后开始积累。`ask` 的合格模拟发言也会入库，但其本机输出不算微信确认发送的助手回复。
+
+聊天存档是本机明文业务数据，和密钥、微信数据库一样不提交 Git、不作为测试夹具；诊断日志仍不保存请求或响应正文。备份或迁移时同时保留 SQLite 和对应 `.members.key`。本功能尚不包含自动摘要、全历史检索或永久成员画像。
 
 ## 测试与后续阶段
 
@@ -109,6 +140,7 @@ src/wechat_ai_bridge/
   dispatch/     白名单、参与策略、去重、限流和暂停
   qa/           通用聊天提示词、群上下文与回复整理
   models/       DeepSeek 模型调用适配
+  media/        场景表情素材同步与云端翻唱短样工具
   knowledge/    可选资料扩展边界
   state/        白名单、暂停、消息去重与最少操作审计
 data/knowledge/  未来可选资料，不是聊天启动条件

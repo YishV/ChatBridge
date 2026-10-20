@@ -12,6 +12,7 @@ from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, SendReceipt
 from wechat_ai_bridge.wechat.errors import GatewayError, GatewayFatalError
 from wechat_ai_bridge.wechat.events import normalize_gateway_message
 from wechat_ai_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat
+from wechat_ai_bridge.wechat.images import matches_image_receipt, outgoing_directory, static_gif
 from wechat_ai_bridge.wechat.windows import unprotect_credential, verify_native_process
 
 
@@ -104,7 +105,7 @@ class NativeClient:
                 or data.get("startupState") != "ready" or data.get("integration") != "WeChatAgent-1"
                 or data.get("databaseAccounts") != [self.account_directory]):
             raise GatewayFatalError("native_account_or_version_mismatch")
-        return {"ready": True, "version": "4.1.10.27"}
+        return {"ready": True, "version": "4.1.10.27", 'nativeStickerSend': data.get('nativeStickerSend') is True}
 
     def send_text(self, group_id: str, text: str):
         if group_id not in self.config.groups or not text.strip() or len(text.encode()) > 16000:
@@ -113,6 +114,18 @@ class NativeClient:
         if self.can_send is None or not self.can_send(group_id):
             raise GatewayError("conversation_not_allowed_or_paused")
         return self._request("/SendTextMsg", {"wxidorgid": group_id, "msg": text})
+
+    def send_image(self, group_id: str, path: Path):
+        if group_id not in self.config.groups:
+            raise GatewayError('invalid_native_send')
+        path = path.resolve()
+        metadata = static_gif(path, directory=outgoing_directory(self.config.expected_executable))
+        health = self.health()
+        if not health.get('nativeStickerSend'):
+            raise GatewayError('native_media_not_supported')
+        if self.can_send is None or not self.can_send(group_id):
+            raise GatewayError('conversation_not_allowed_or_paused')
+        return self._request('/SendStickerMsg', {'wxidorgid': group_id, 'path': str(path), 'sticker': metadata})
 
 
 class NativeSender:
@@ -149,6 +162,32 @@ class NativeSender:
             self.sleep(1)
         return SendReceipt(False)
 
+    def send_group_image(self, group_id: str, path: Path) -> SendReceipt:
+        if group_id not in self.groups or not self.store.is_allowed(group_id) or self.store.is_paused():
+            raise GatewayError('conversation_not_allowed_or_paused')
+        metadata = static_gif(path)
+        started = self.clock()
+        baseline = {(row.shard, row.local_id) for row in self.reader.recent(group_id, int(started) - 30)}
+        if not self.store.is_allowed(group_id) or self.store.is_paused():
+            raise GatewayError('conversation_not_allowed_or_paused')
+        try:
+            accepted = self.native.send_image(group_id, path)
+        except GatewayFatalError:
+            raise
+        except Exception:
+            return SendReceipt(False)
+        if accepted.get('ret') != 0:
+            return SendReceipt(False)
+        deadline = time.monotonic() + self.receipt_timeout
+        while time.monotonic() < deadline:
+            for row in self.reader.recent(group_id, int(started) - 30):
+                if ((row.shard, row.local_id) not in baseline and row.sender_id == self.account_id
+                        and row.create_time >= int(started) - 30 and row.local_id > 0 and row.server_id > 0
+                        and matches_image_receipt(row, metadata['md5'])):
+                    return SendReceipt(True, str(row.server_id))
+            self.sleep(1)
+        return SendReceipt(False)
+
 
 class GatewayRunner:
     def __init__(self, reader, native, service, store, account_id: str, groups: frozenset[str], *, clock=time.time):
@@ -170,9 +209,15 @@ class GatewayRunner:
             del self.cursors[removed]
         counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0,
                   "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": [], "patReceived": 0,
-                  'modelRetries': 0}
+                  'modelRetries': 0, 'mediaConfirmed': 0, 'mediaUnconfirmed': 0, 'mediaErrorCodes': []}
 
         def record_result(result, *, natural=False):
+            if result.media_delivery == DeliveryOutcome.CONFIRMED:
+                counts['mediaConfirmed'] += 1
+            elif result.media_delivery == DeliveryOutcome.UNCONFIRMED:
+                counts['mediaUnconfirmed'] += 1
+            if isinstance(result.media_reason, str) and result.media_reason not in counts['mediaErrorCodes']:
+                counts['mediaErrorCodes'].append(result.media_reason)
             attempts = result.processed.model_attempts
             if type(attempts) is int:
                 counts['modelRetries'] += max(0, attempts - 1)

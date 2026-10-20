@@ -33,7 +33,10 @@ class MessageProcessor:
         if (not message.is_group or message.is_from_bot or not message.text.strip()
                 or not self.store.is_allowed(message.group_id) or self.store.is_paused()):
             return ProcessResult(Outcome.IGNORED)
-        if not self.store.claim_event(message.message_id, message.group_id):
+        history = self.chat.history_entry(message)
+        claimed = (self.store.claim_event(message.message_id, message.group_id, chat=history)
+                   if history is not None else self.store.claim_event(message.message_id, message.group_id))
+        if not claimed:
             return ProcessResult(Outcome.DUPLICATE)
         self.chat.observe(message)
         if not message.is_directed:
@@ -73,7 +76,8 @@ class MessageProcessor:
             if self.store.is_paused() or not self.store.is_allowed(message.group_id):
                 return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=attempt - 1)
             try:
-                answer = self.chat.respond(message)
+                generated = self.chat.generate(message)
+                answer = generated.reply
             except ModelError as error:
                 self.store.record_model_failure(error.code, attempt)
                 if attempt == 1 and error.retryable:
@@ -87,7 +91,8 @@ class MessageProcessor:
             except (ValueError, OSError):
                 return ProcessResult(Outcome.ERROR, reason='prompt_or_chat_configuration', model_attempts=attempt)
             return ProcessResult(Outcome.ANSWERED if answer else Outcome.IGNORED, answer,
-                                 reason=None if answer else 'model_silent', model_attempts=attempt)
+                                 reason=None if answer else 'model_silent', model_attempts=attempt,
+                                 meme_id=generated.meme_id)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         self.chat.record_reply(message, text)

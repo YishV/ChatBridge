@@ -3,6 +3,7 @@
 import argparse
 import json
 import time
+from pathlib import Path
 
 from wechat_ai_bridge.console_log import ConsoleLog, NullConsole
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
@@ -10,6 +11,7 @@ from wechat_ai_bridge.message import IncomingMessage
 from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
 from wechat_ai_bridge.media.cover import add_cover_parser, run_cover
 from wechat_ai_bridge.media.kits import CoverError
+from wechat_ai_bridge.media.memes import MemeCatalog, MemeError
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.settings import Settings
@@ -17,6 +19,7 @@ from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.wechat.delivery import DeliveryService
 from wechat_ai_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeClient, NativeSender
 from wechat_ai_bridge.wechat.instance import SingleInstance
+from wechat_ai_bridge.wechat.images import outgoing_directory
 from wechat_ai_bridge.wechat.reader import EncryptedMessageReader
 
 
@@ -31,30 +34,60 @@ def create_model(settings):
         timeout_seconds=settings.model_timeout_seconds, max_tokens=settings.model_max_tokens)
 
 
-def create_processor(settings, store):
+_UNSET = object()
+
+
+def create_meme_catalog(settings, *, outgoing=None):
+    if not settings.memes_enabled:
+        return None
+    return MemeCatalog(settings.meme_cache_dir, outgoing or Path('state/stickers/outgoing'))
+
+
+def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET):
+    identity_path = settings.state_db.with_suffix('.members.key')
+    if store.has_chat_history() and not identity_path.is_file():
+        raise GatewayError('member_identity_key_missing_for_history')
+    groups = store.allowed_groups() if history_groups is None else history_groups
+    if meme_catalog is _UNSET:
+        meme_catalog = create_meme_catalog(settings)
     chat = ChatService(create_model(settings), settings.system_prompt or DEFAULT_SYSTEM_PROMPT,
         prompt_file=None if settings.system_prompt else settings.prompt_file,
-        alias_key=load_identity_key(settings.state_db.with_suffix('.members.key')))
+        alias_key=load_identity_key(identity_path), history_store=store,
+        history_groups=groups, history_limit=settings.history_context_messages,
+        meme_catalog=meme_catalog,
+        meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
 
 
 def run_gateway(args, settings, store):
-    processor = create_processor(settings, store)
-    processor.chat._load_system_prompt()
     config = GatewayConfig.load(settings.gateway_config)
     account, passphrase = config.reader_credentials()
     reader = EncryptedMessageReader(account, passphrase, config.account_id, config.groups)
     native = NativeClient(config, account.name,
         can_send=lambda group: store.is_allowed(group) and not store.is_paused())
     health = native.health()
+    catalog = None
+    if settings.memes_enabled:
+        try:
+            catalog = create_meme_catalog(settings, outgoing=outgoing_directory(config.expected_executable))
+        except (GatewayError, OSError, TypeError, IndexError):
+            # A path or cache problem only disables images; text chat continues.
+            catalog = None
+    # Without native sticker support, do not offer the model an image it cannot send.
+    active_catalog = catalog if health.get('nativeStickerSend') is True else None
+    processor = create_processor(settings, store, history_groups=config.groups, meme_catalog=active_catalog)
+    processor.chat._load_system_prompt()
     for group in config.groups:
         reader.snapshot(group)
     status = {"gatewayReady": health["ready"], "clientVersion": health["version"],
         "modelConfigured": bool(settings.model_api_key), "participationMode": settings.participation_mode,
         "allowedGroupCount": sum(store.is_allowed(group) for group in config.groups), "paused": store.is_paused(),
-        "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds}
+        "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds,
+        'historyRestored': processor.chat.restored_messages, 'historyContextMessages': settings.history_context_messages,
+        'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
+        'memeNativeReady': health.get('nativeStickerSend') is True}
     if args.check:
         emit(status)
         return
@@ -66,7 +99,13 @@ def run_gateway(args, settings, store):
     with SingleInstance(lock_file):
         console = NullConsole() if getattr(args, 'quiet_console', False) else ConsoleLog()
         service = DeliveryService(processor, store,
-            NativeSender(reader, native, store, config.account_id, config.groups), console=console)
+            NativeSender(reader, native, store, config.account_id, config.groups), console=console,
+            meme_catalog=active_catalog,
+            meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count)
+        if settings.memes_enabled and not status['memeAssets']:
+            console.notice('未加载表情素材，继续文字聊天；可在另一终端执行 memes sync 后重启网关')
+        elif settings.memes_enabled and not status['memeNativeReady']:
+            console.notice('本机组件暂不支持表情发送，继续文字聊天')
         runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups)
         runner.initialize()
         console.notice("网关已启动：收到消息和发送结果会实时打印到终端，不写入日志文件")
@@ -84,6 +123,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="通用微信群 AI 聊天机器人")
     commands = parser.add_subparsers(dest="command", required=True)
     add_cover_parser(commands)
+    memes = commands.add_parser('memes', help='同步和查看场景表情素材，不发送微信消息')
+    memes.add_argument('action', choices=('sync', 'list', 'check', 'prepare'))
+    memes.add_argument('--id', help='prepare 时指定已注册素材编号，如 083')
     ask = commands.add_parser("ask", help="本机模拟群文本，不向微信发送")
     ask.add_argument("--group", required=True)
     ask.add_argument("--sender", required=True)
@@ -106,6 +148,24 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        if args.command == 'memes':
+            catalog = create_meme_catalog(settings)
+            if catalog is None:
+                raise MemeError('memes_disabled')
+            if args.action == 'sync':
+                emit({'status': 'memes_synced', **catalog.sync()})
+            elif args.action == 'list':
+                emit({'assets': [{'id': asset.id, 'description': asset.description} for asset in catalog.assets]})
+            elif args.action == 'prepare':
+                if not args.id:
+                    parser.error('memes prepare 需要 --id 素材编号')
+                path = catalog.prepare(args.id)
+                emit({'status': 'meme_prepared', 'id': args.id, 'path': str(path)})
+            else:
+                emit({'enabled': settings.memes_enabled, 'assets': len(catalog.assets),
+                      'cooldownSeconds': settings.meme_cooldown_seconds, 'recentCount': settings.meme_recent_count,
+                      'nativeChecked': False, 'sent': False})
+            return
         if args.command == "model-check":
             response = create_model(settings).complete([{"role": "user", "content": "请仅回复一个字：好"}])
             emit({"modelReady": bool(response)})
@@ -126,13 +186,16 @@ def main() -> None:
         elif args.command == "run":
             run_gateway(args, settings, store)
         else:
-            result = create_processor(settings, store).process(IncomingMessage(
+            result = create_processor(settings, store, history_groups=(args.group,)).process(IncomingMessage(
                 args.message_id, args.group, args.sender, args.text, args.mentioned))
             emit({"outcome": result.outcome, "reply": result.reply})
     except KeyboardInterrupt:
         emit({"status": "stopped"})
     except CoverError as error:
         emit({"status": "cover_unavailable", "error": error.code})
+        raise SystemExit(1) from None
+    except MemeError as error:
+        emit({'status': 'memes_unavailable', 'error': error.code})
         raise SystemExit(1) from None
     except GatewayError as error:
         emit({"status": "stopped", "error": str(error)})

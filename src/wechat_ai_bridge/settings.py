@@ -26,8 +26,19 @@ class Settings:
     prompt_file: Path = Path("config/persona.md")
     model_timeout_seconds: float = 45
     model_max_tokens: int = 1200
+    history_context_messages: int = 50
+    memes_enabled: bool = True
+    meme_cache_dir: Path = Path('data/runtime/memes')
+    meme_cooldown_seconds: int = 60
+    meme_recent_count: int = 5
 
     def __post_init__(self):
+        if (type(self.memes_enabled) is not bool or type(self.meme_cooldown_seconds) is not int
+                or not 0 <= self.meme_cooldown_seconds <= 3600
+                or type(self.meme_recent_count) is not int or not 1 <= self.meme_recent_count <= 20):
+            raise ValueError('表情包开关或频率配置无效')
+        if type(self.history_context_messages) is not int or not 1 <= self.history_context_messages <= 200:
+            raise ValueError('聊天恢复条数必须为 1 至 200')
         if (isinstance(self.model_timeout_seconds, bool)
                 or not isinstance(self.model_timeout_seconds, (int, float))
                 or not 1 <= self.model_timeout_seconds <= 120
@@ -40,6 +51,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv(override=False, encoding="utf-8-sig")
+        memes_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMES_ENABLED', 'true').strip().lower()
+        if memes_enabled not in ('true', 'false', '1', '0'):
+            raise ValueError('表情包开关必须为 true 或 false')
         try:
             model_timeout_seconds = float(os.getenv("WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS", "45"))
             model_max_tokens = int(os.getenv("WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS", "1200"))
@@ -66,6 +80,11 @@ class Settings:
             prompt_file=Path(os.getenv("WECHAT_AI_BRIDGE_PROMPT_FILE", "config/persona.md")),
             model_timeout_seconds=model_timeout_seconds,
             model_max_tokens=model_max_tokens,
+            history_context_messages=int(os.getenv('WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES', '50')),
+            memes_enabled=memes_enabled in ('true', '1'),
+            meme_cache_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_CACHE_DIR', 'data/runtime/memes')),
+            meme_cooldown_seconds=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS', '60')),
+            meme_recent_count=int(os.getenv('WECHAT_AI_BRIDGE_MEME_RECENT_COUNT', '5')),
         )
         if (result.participation_mode not in ("natural", "mentions")
                 or result.model_thinking not in ("enabled", "disabled")
