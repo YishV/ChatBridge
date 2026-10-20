@@ -4,6 +4,7 @@ import argparse
 import json
 import time
 
+from wechat_ai_bridge.console_log import ConsoleLog
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
 from wechat_ai_bridge.message import IncomingMessage
 from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
@@ -60,10 +61,12 @@ def run_gateway(args, settings, store):
         raise GatewayError("no_allowed_groups")
     lock_file = settings.state_db.with_suffix(".gateway.lock")
     with SingleInstance(lock_file):
+        console = ConsoleLog()
         service = DeliveryService(processor, store,
-            NativeSender(reader, native, store, config.account_id, config.groups))
+            NativeSender(reader, native, store, config.account_id, config.groups), console=console)
         runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups)
         runner.initialize()
+        console.notice("网关已启动：收到消息和发送结果会实时打印到终端，不写入日志文件")
         emit({"status": "running", **status, "historyReplied": False})
         while True:
             counts = runner.tick()

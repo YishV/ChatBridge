@@ -17,7 +17,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 
 可用 `uv run --extra native wechat-ai-bridge model-check` 独立检查模型连通性；该命令不向微信群发送消息，成功时仅输出 `modelReady: true` 状态。
 
-真实微信数据库、数据库凭据和聊天正文也不得提交或写入日志。[本机接入记录](docs/wechatagent-integration.md) 记录基础收发阶段；网关私有配置格式见 [配置说明](docs/gateway-config.md)。
+真实微信数据库、数据库凭据和聊天正文也不得提交或写入日志；运行终端仅做本机临时显示，不落盘。[本机接入记录](docs/wechatagent-integration.md) 记录基础收发阶段；网关私有配置格式见 [配置说明](docs/gateway-config.md)。
 
 ## 本机模拟
 
@@ -45,6 +45,8 @@ uv run --extra native wechat-ai-bridge run
 ```
 
 进程须持续运行才能处理消息。启动时记录当前群消息游标，只接启动后的新消息，不补答历史。`run --once` 仅执行一次轮询，不重复处理历史，不能替代持续运行。
+
+运行中会在终端逐条打印收发日志，便于本机观察：`[收到]` 记录群、发送者、方式（原生 `@`/拍一拍/普通）和正文；`[发送成功]`/`[发送未确认]` 记录回复正文、耗时与服务器消息 ID；未产生或未提交回复时打印 `[未回复]`/`[未发送]` 及原因。日志只写标准错误（stdout 仍只输出状态 JSON），不写入任何文件，不要把终端输出重定向保存或提交。
 
 管理命令仅在本机终端使用：
 
