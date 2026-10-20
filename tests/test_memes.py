@@ -147,6 +147,16 @@ class MemeCatalogTests(unittest.TestCase):
         self.assertEqual(catalog.prepare('123'), path)
         self.assertEqual(len(self.opener.calls), calls + 1)
 
+    def test_prepare_downscales_oversized_image_for_sticker_display(self):
+        catalog = self.synced({CDN + '123.webp': self.image(size=(1200, 800))})
+        path = catalog.prepare('123')
+        from PIL import Image
+        with Image.open(path) as frame:
+            self.assertEqual(frame.format, 'GIF')
+            self.assertEqual(frame.n_frames, 1)
+            self.assertLessEqual(max(frame.size), 500)
+            self.assertGreater(frame.size[0], frame.size[1])
+
     def test_prepare_uses_official_mirror_when_cdn_forbids(self):
         catalog = self.synced({CDN + '010.webp': forbidden(CDN + '010.webp'),
                                BASE + 'previews/010.webp': self.image()})

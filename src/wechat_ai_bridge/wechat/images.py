@@ -9,6 +9,9 @@ from xml.etree import ElementTree
 from wechat_ai_bridge.wechat.errors import GatewayError
 
 
+MAX_GIF_SIDE = 1000
+
+
 def outgoing_directory(executable: Path) -> Path:
     """Match the existing secured component's fixed media directory."""
     try:
@@ -34,8 +37,11 @@ def static_gif(path: Path, *, directory: Path | None = None) -> dict:
         from PIL import Image
         with Image.open(io.BytesIO(data)) as image:
             width, height = image.size
+            # WeChat turns GIFs wider than 1000 px into file cards instead of
+            # stickers, even when the native sticker API accepted the file.
             if (image.format != 'GIF' or getattr(image, 'n_frames', 1) != 1
-                    or not 1 <= width <= 4096 or not 1 <= height <= 4096 or width*height > 16_000_000):
+                    or not 1 <= width <= MAX_GIF_SIDE or not 1 <= height <= MAX_GIF_SIDE
+                    or width*height > 16_000_000):
                 raise ValueError()
             image.load()
         return {'md5': digest, 'len': len(data), 'width': width, 'height': height, 'type': 1, 'productid': ''}

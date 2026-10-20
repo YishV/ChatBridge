@@ -8,6 +8,7 @@ from PIL import Image
 
 from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.wechat.gateway import GatewayConfig, NativeClient, NativeSender
+from wechat_ai_bridge.wechat.images import static_gif
 from wechat_ai_bridge.wechat.reader import NativeRow
 from wechat_ai_bridge.wechat.errors import GatewayError
 
@@ -71,6 +72,19 @@ class MemeNativeTests(unittest.TestCase):
         with self.assertRaises(GatewayError):
             client.send_image(self.group, self.path)
         client._request.assert_not_called()
+
+    def test_sticker_gif_wider_than_wechat_limit_is_rejected(self):
+        for width, accepted in ((1000, True), (1001, False)):
+            with self.subTest(width=width):
+                path = self.outgoing / f'wide-{width}.gif'
+                Image.new('RGB', (width, 8), 'blue').save(path, 'GIF')
+                digest = hashlib.md5(path.read_bytes()).hexdigest()
+                path = path.rename(self.outgoing / (digest + '.gif'))
+                if accepted:
+                    self.assertEqual(static_gif(path, directory=self.outgoing)['width'], width)
+                else:
+                    with self.assertRaises(GatewayError):
+                        static_gif(path, directory=self.outgoing)
 
     def test_unknown_image_send_never_retries(self):
         reader, native = Mock(), Mock()

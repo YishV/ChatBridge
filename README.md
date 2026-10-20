@@ -72,7 +72,7 @@ uv run --extra native wechat-ai-bridge memes list
 uv run --extra native wechat-ai-bridge memes check
 ```
 
-素材索引保存在 `WECHAT_AI_BRIDGE_MEME_CACHE_DIR`（默认 `data/runtime/memes`）。站点拒绝访问时改从公开仓库 README 的精选 19 张同步，不绕过站点限制；运行到需要发图时再按需下载并转成单帧 GIF，缓存在本机组件限定的 `state/stickers/outgoing`（Git 忽略）。下载或转换失败只保留已发送的文字，不补发、不重试。
+素材索引保存在 `WECHAT_AI_BRIDGE_MEME_CACHE_DIR`（默认 `data/runtime/memes`）。站点拒绝访问时改从公开仓库 README 的精选 19 张同步，不绕过站点限制；运行到需要发图时再按需下载并转成单帧 GIF，缓存在本机组件限定的 `state/stickers/outgoing`（Git 忽略）。下载或转换失败只保留已发送的文字，不补发、不重试。缓存前会把长边缩放到 500 像素：微信会把宽度超过 1000 像素的 GIF 当文件卡片发送，不能靠原生接口接受来保证显示成表情。
 
 `memes check` 只读本地配置和索引，不连接微信组件；组件是否支持表情发送看 `run --check` 的 `memeNativeReady`。
 

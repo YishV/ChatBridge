@@ -24,6 +24,9 @@ README_URL = OFFICIAL_BASE + 'README.md'
 CDN_BASE = 'https://img.aigengtu.com/meme/'
 INDEX_LIMIT = 2 * 1024 * 1024
 IMAGE_LIMIT = 8 * 1024 * 1024
+# WeChat sends GIFs wider than 1000 px as file cards; keep a sticker-sized
+# cache well under that limit so the native sticker sender stays a sticker.
+STICKER_MAX_SIDE = 500
 # These paths were verified in the publisher's README, not inferred mirror IDs.
 OFFICIAL_IDS = frozenset('123 010 022 035 037 040 044 050 052 056 058 070 071 077 081 083 085 087 097'.split())
 
@@ -261,8 +264,9 @@ class MemeCatalog:
             data = path.read_bytes()
             if hashlib.md5(data).hexdigest() != digest:
                 return None
-            with _image(data, require_gif=True):
-                pass
+            with _image(data, require_gif=True) as frame:
+                if max(frame.size) > STICKER_MAX_SIDE:
+                    return None
             return path
         except (OSError, ValueError, TypeError):
             return None
@@ -285,10 +289,9 @@ class MemeCatalog:
             Image = _pillow()
             with _image(data) as frame:
                 rgba = frame.convert('RGBA')
-                clean = Image.new('RGB', frame.size, 'white')
-                clean.paste(rgba, mask=rgba.getchannel('A'))
+                rgba.thumbnail((STICKER_MAX_SIDE, STICKER_MAX_SIDE), Image.Resampling.LANCZOS)
                 buffer = io.BytesIO()
-                clean.save(buffer, format='GIF')
+                rgba.save(buffer, format='GIF')
                 gif = buffer.getvalue()
             if len(gif) > IMAGE_LIMIT:
                 raise MemeError('meme_image_invalid')
