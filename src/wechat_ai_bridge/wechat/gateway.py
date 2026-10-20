@@ -4,7 +4,7 @@ import json
 import re
 import time
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from wechat_ai_bridge.message import Outcome
@@ -169,9 +169,13 @@ class GatewayRunner:
         for removed in set(self.cursors) - active:
             del self.cursors[removed]
         counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0,
-                  "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": [], "patReceived": 0}
+                  "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": [], "patReceived": 0,
+                  'modelRetries': 0}
 
         def record_result(result, *, natural=False):
+            attempts = result.processed.model_attempts
+            if type(attempts) is int:
+                counts['modelRetries'] += max(0, attempts - 1)
             if result.processed.outcome == Outcome.ERROR:
                 counts["modelErrors"] += 1
                 reason = result.processed.reason
@@ -211,6 +215,10 @@ class GatewayRunner:
                 incoming = normalize_gateway_message(raw, self.account_id) if raw else None
                 if incoming is None:
                     continue
+                resolver = getattr(self.reader, 'sender_display_name', None)
+                name = resolver(group, incoming.sender_id) if callable(resolver) else None
+                if isinstance(name, str) and name:
+                    incoming = replace(incoming, sender_name=name)
                 result = self.service.handle(incoming)
                 counts["received"] += 1
                 if incoming.interaction == "pat":

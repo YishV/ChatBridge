@@ -1,6 +1,7 @@
 """Local configuration for general group chat and its Windows gateway."""
 
 import os
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,10 +24,27 @@ class Settings:
     poll_seconds: float = 2.0
     system_prompt: str = ""
     prompt_file: Path = Path("config/persona.md")
+    model_timeout_seconds: float = 45
+    model_max_tokens: int = 1200
+
+    def __post_init__(self):
+        if (isinstance(self.model_timeout_seconds, bool)
+                or not isinstance(self.model_timeout_seconds, (int, float))
+                or not 1 <= self.model_timeout_seconds <= 120
+                or not math.isfinite(self.model_timeout_seconds)):
+            raise ValueError("模型请求超时必须为 1 至 120 秒")
+        if (isinstance(self.model_max_tokens, bool) or not isinstance(self.model_max_tokens, int)
+                or not 128 <= self.model_max_tokens <= 8192):
+            raise ValueError("模型输出上限必须为 128 至 8192 个 token")
 
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv(override=False, encoding="utf-8-sig")
+        try:
+            model_timeout_seconds = float(os.getenv("WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS", "45"))
+            model_max_tokens = int(os.getenv("WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS", "1200"))
+        except (ValueError, OverflowError):
+            raise ValueError("模型请求超时或输出上限配置无效") from None
         result = cls(
             state_db=Path(os.getenv("WECHAT_AI_BRIDGE_STATE_DB", "data/runtime/chat-state.sqlite3")),
             model_name=os.getenv("WECHAT_AI_BRIDGE_MODEL_NAME", "deepseek-flash"),
@@ -46,6 +64,8 @@ class Settings:
             poll_seconds=float(os.getenv("WECHAT_AI_BRIDGE_POLL_SECONDS", "2")),
             system_prompt=os.getenv("WECHAT_AI_BRIDGE_SYSTEM_PROMPT", ""),
             prompt_file=Path(os.getenv("WECHAT_AI_BRIDGE_PROMPT_FILE", "config/persona.md")),
+            model_timeout_seconds=model_timeout_seconds,
+            model_max_tokens=model_max_tokens,
         )
         if (result.participation_mode not in ("natural", "mentions")
                 or result.model_thinking not in ("enabled", "disabled")

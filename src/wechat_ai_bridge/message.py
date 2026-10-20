@@ -14,6 +14,7 @@ class IncomingMessage:
     is_group: bool = True
     is_from_bot: bool = False
     interaction: str = "text"
+    sender_name: str | None = None
 
     @property
     def is_directed(self) -> bool:
@@ -35,3 +36,4 @@ class ProcessResult:
     outcome: Outcome
     reply: str | None = None
     reason: str | None = None
+    model_attempts: int = 0

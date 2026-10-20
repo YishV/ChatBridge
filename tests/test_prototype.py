@@ -49,9 +49,9 @@ class PrototypeTests(unittest.TestCase):
             def __exit__(self, *_):
                 return False
 
-            def read(self):
+            def read(self, size=-1):
                 return json.dumps({"choices": [{"finish_reason": self.finish_reason,
-                                                "message": {"content": "回答"}}]}).encode()
+                                                "message": {"content": "回答"}}]}).encode()[:size if size >= 0 else None]
 
         class Opener:
             def __init__(self, finish_reason):

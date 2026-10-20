@@ -1,6 +1,7 @@
 """Persist administrator controls and message IDs without chat transcripts."""
 
 import sqlite3
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,6 +21,13 @@ class StateStore:
 
     def close(self) -> None:
         self.connection.close()
+
+    def record_model_failure(self, code: str, attempt: int) -> None:
+        if (not isinstance(code, str) or not re.fullmatch(r'model_[a-z0-9_]{1,64}', code)
+                or type(attempt) is not int or not 1 <= attempt <= 2):
+            raise ValueError('invalid_model_diagnostic')
+        with self.connection:
+            self._audit(f'model_failure:{code}:attempt{attempt}')
 
     def allow_group(self, group_id: str) -> None:
         if not group_id.strip():

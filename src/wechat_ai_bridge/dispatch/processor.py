@@ -1,7 +1,8 @@
 """Admission, persistent event deduplication, and group conversation dispatch."""
 
 from collections.abc import Callable, Iterator
-from time import monotonic
+import hashlib
+from time import monotonic, sleep
 
 from wechat_ai_bridge.message import IncomingMessage, Outcome, ProcessResult
 from wechat_ai_bridge.models.client import ModelError
@@ -12,7 +13,8 @@ from wechat_ai_bridge.state.store import StateStore
 class MessageProcessor:
     def __init__(self, store: StateStore, chat: ChatService, *, cooldown_seconds: int = 5,
                  hourly_quota: int = 60, participation_mode: str = "natural",
-                 spontaneous_cooldown_seconds: int = 5, clock: Callable[[], float] = monotonic):
+                 spontaneous_cooldown_seconds: int = 5, clock: Callable[[], float] = monotonic,
+                 retry_sleep: Callable[[float], None] = sleep):
         if participation_mode not in {"natural", "mentions"}:
             raise ValueError("参与模式必须为 natural 或 mentions")
         if cooldown_seconds < 0 or spontaneous_cooldown_seconds < 0 or hourly_quota < 1:
@@ -24,6 +26,7 @@ class MessageProcessor:
         self.participation_mode = participation_mode
         self.spontaneous_cooldown_seconds = max(5, spontaneous_cooldown_seconds)
         self.clock = clock
+        self.retry_sleep = retry_sleep
         self._pending: dict[str, tuple[IncomingMessage, float]] = {}
 
     def process(self, message: IncomingMessage) -> ProcessResult:
@@ -66,14 +69,25 @@ class MessageProcessor:
             return ProcessResult(Outcome.DUPLICATE)
         if reservation == "rate_limited":
             return ProcessResult(Outcome.RATE_LIMITED)
-        try:
-            answer = self.chat.respond(message)
-        except ModelError as error:
-            return ProcessResult(Outcome.ERROR, reason=error.code)
-        except (ValueError, OSError):
-            return ProcessResult(Outcome.ERROR, reason="prompt_or_chat_configuration")
-        return ProcessResult(Outcome.ANSWERED if answer else Outcome.IGNORED, answer,
-                             reason=None if answer else "model_silent")
+        for attempt in (1, 2):
+            if self.store.is_paused() or not self.store.is_allowed(message.group_id):
+                return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=attempt - 1)
+            try:
+                answer = self.chat.respond(message)
+            except ModelError as error:
+                self.store.record_model_failure(error.code, attempt)
+                if attempt == 1 and error.retryable:
+                    if self.store.is_paused() or not self.store.is_allowed(message.group_id):
+                        return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=attempt)
+                    retry_id = 'model-retry:' + hashlib.sha256(message.message_id.encode()).hexdigest()
+                    if self.store.reserve(retry_id, message.group_id, 0, self.hourly_quota) == 'reserved':
+                        self.retry_sleep(0.5)
+                        continue
+                return ProcessResult(Outcome.ERROR, reason=error.code, model_attempts=attempt)
+            except (ValueError, OSError):
+                return ProcessResult(Outcome.ERROR, reason='prompt_or_chat_configuration', model_attempts=attempt)
+            return ProcessResult(Outcome.ANSWERED if answer else Outcome.IGNORED, answer,
+                                 reason=None if answer else 'model_silent', model_attempts=attempt)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         self.chat.record_reply(message, text)

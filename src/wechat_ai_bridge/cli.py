@@ -4,13 +4,14 @@ import argparse
 import json
 import time
 
-from wechat_ai_bridge.console_log import ConsoleLog
+from wechat_ai_bridge.console_log import ConsoleLog, NullConsole
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
 from wechat_ai_bridge.message import IncomingMessage
 from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
 from wechat_ai_bridge.media.cover import add_cover_parser, run_cover
 from wechat_ai_bridge.media.kits import CoverError
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
+from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.wechat.delivery import DeliveryService
@@ -26,12 +27,14 @@ def emit(value):
 def create_model(settings):
     return ChatCompletionsClient(base_url=settings.model_base_url,
         allowed_hosts=settings.allowed_model_hosts, api_key=settings.model_api_key,
-        model=settings.model_name, thinking=settings.model_thinking)
+        model=settings.model_name, thinking=settings.model_thinking,
+        timeout_seconds=settings.model_timeout_seconds, max_tokens=settings.model_max_tokens)
 
 
 def create_processor(settings, store):
     chat = ChatService(create_model(settings), settings.system_prompt or DEFAULT_SYSTEM_PROMPT,
-        prompt_file=None if settings.system_prompt else settings.prompt_file)
+        prompt_file=None if settings.system_prompt else settings.prompt_file,
+        alias_key=load_identity_key(settings.state_db.with_suffix('.members.key')))
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -61,7 +64,7 @@ def run_gateway(args, settings, store):
         raise GatewayError("no_allowed_groups")
     lock_file = settings.state_db.with_suffix(".gateway.lock")
     with SingleInstance(lock_file):
-        console = ConsoleLog()
+        console = NullConsole() if getattr(args, 'quiet_console', False) else ConsoleLog()
         service = DeliveryService(processor, store,
             NativeSender(reader, native, store, config.account_id, config.groups), console=console)
         runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups)
@@ -89,6 +92,7 @@ def main() -> None:
     ask.add_argument("--mentioned", action="store_true", help="模拟原生 @机器人")
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
     run = commands.add_parser("run", help="持续处理已配置白名单群的新消息")
+    run.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复，仅输出状态计数')
     mode = run.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="只读检查本机接入，不调用模型或发送消息")
     mode.add_argument("--once", action="store_true", help="跳过已有消息后执行一次轮询")
@@ -135,7 +139,8 @@ def main() -> None:
         raise SystemExit(1) from None
     except ModelError as error:
         status = getattr(error.__cause__, "code", None)
-        emit({"status": "model_unavailable", "httpStatus": status})
+        emit({"status": "model_unavailable", "httpStatus": status, 'error': error.code,
+              'retryable': error.retryable})
         raise SystemExit(1) from None
     except (OSError, ValueError, KeyError, TypeError):
         emit({"status": "stopped", "error": "configuration_or_runtime_invalid"})

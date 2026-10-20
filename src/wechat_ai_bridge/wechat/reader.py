@@ -2,6 +2,9 @@
 
 import hashlib
 import re
+import time
+import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -30,6 +33,52 @@ class EncryptedMessageReader:
         self.groups = groups
         self._passphrase = bytes.fromhex(passphrase)
         self._keys: dict[bytes, bytes] = {}
+        self._sender_names: OrderedDict[tuple[str, str], tuple[float, str | None]] = OrderedDict()
+
+    def sender_display_name(self, group_id: str, sender_id: str) -> str | None:
+        """Resolve the WeChat nickname of a sender from a validated group message.
+
+        Callers must first validate a message in this group and obtain its sender
+        from that message. This lookup does not establish group membership, and
+        contact.nick_name is a WeChat nickname rather than a group-specific name.
+        """
+        if (group_id not in self.groups or not group_id.endswith("@chatroom")
+                or not isinstance(sender_id, str) or not sender_id.strip()
+                or sender_id == self.account_id or sender_id.endswith("@chatroom")):
+            return None
+        key = (group_id, sender_id)
+        now = time.monotonic()
+        cached = self._sender_names.get(key)
+        if cached is not None and now < cached[0]:
+            self._sender_names.move_to_end(key)
+            return cached[1]
+        self._sender_names.pop(key, None)
+        name = None
+        try:
+            directory = self.account_path / "db_storage" / "contact"
+            resolved_directory = directory.resolve()
+            path = (directory / "contact.db").resolve()
+            if (resolved_directory.is_relative_to(directory)
+                    and path.is_relative_to(resolved_directory) and path.is_file()):
+                connection = self._connect(path)
+                try:
+                    row = connection.execute(
+                        "SELECT nick_name FROM contact WHERE username=? LIMIT 1", (sender_id,)).fetchone()
+                    if row and isinstance(row[0], str):
+                        cleaned = "".join(
+                            " " if char.isspace() else char
+                            for char in row[0]
+                            if char.isspace() or unicodedata.category(char) not in {"Cc", "Cf"})
+                        name = " ".join(cleaned.split())[:64].strip() or None
+                finally:
+                    connection.close()
+        except Exception:
+            # Nicknames are optional; contact failures must not stop message reads.
+            name = None
+        self._sender_names[key] = (now + 60, name)
+        if len(self._sender_names) > 500:
+            self._sender_names.popitem(last=False)
+        return name
 
     def _shards(self):
         directory = self.account_path / "db_storage/message"
