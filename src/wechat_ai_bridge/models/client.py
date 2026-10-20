@@ -73,14 +73,102 @@ class ChatCompletionsClient:
     def complete_json(self, messages: list[dict[str, str]]) -> str:
         return self._complete(messages, json_mode=True)
 
-    def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
-        if not self.api_key:
-            raise ModelError("未配置模型 API 密钥", code="model_key_missing")
+    def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=()) -> str:
+        """Return a JSON decision from a forced tool call.
+
+        DeepSeek's JSON Output mode can return empty content for this project's
+        long persona prompt. A forced function call keeps ``reply`` structured
+        without relying on that mode; an empty reply is silence, not an error.
+        """
+        meme_ids = tuple(meme_ids)
+        if (len(set(meme_ids)) != len(meme_ids)
+                or any(not isinstance(asset_id, str) or not re.fullmatch(r"[0-9]{3,6}", asset_id)
+                       for asset_id in meme_ids)):
+            raise ValueError("invalid meme ids")
+        payload = self._payload(messages)
+        payload["tools"] = [self._decision_tool(meme_ids)]
+        payload["tool_choice"] = {"type": "function", "function": {"name": "decide_reply"}}
+        data = self._post(payload)
+        choice = self._choice(data)
+        self._check_finish(choice["finish_reason"], allow_tool_calls=True)
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            raise ModelError(code="model_response_invalid")
+        calls = message.get("tool_calls")
+        if isinstance(calls, list) and calls:
+            call = calls[0]
+            function = call.get("function") if isinstance(call, dict) else None
+            if (not isinstance(function, dict) or function.get("name") != "decide_reply"
+                    or not isinstance(function.get("arguments"), str)):
+                raise ModelError(code="model_response_invalid")
+            arguments = function["arguments"]
+            if len(arguments.encode("utf-8")) > 64 * 1024:
+                raise ModelError(code="model_response_too_large")
+            try:
+                decision = json.loads(arguments)
+            except (ValueError, UnicodeError, RecursionError) as exc:
+                raise ModelError(code="model_response_json_invalid") from exc
+            if not isinstance(decision, dict):
+                raise ModelError(code="model_response_invalid")
+            if "reply" not in decision:
+                raise ModelError(code="model_response_invalid")
+            reply = decision.get("reply")
+            if reply is None:
+                reply = ""
+            elif not isinstance(reply, str):
+                raise ModelError(code="model_response_invalid")
+            meme_id = decision.get("meme_id")
+            if meme_id is not None and not isinstance(meme_id, str):
+                raise ModelError(code="model_response_invalid")
+            cleaned = {"reply": reply}
+            if isinstance(meme_id, str):
+                cleaned["meme_id"] = meme_id
+            return json.dumps(cleaned, ensure_ascii=False)
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            text = content.strip()
+            try:
+                parsed = json.loads(text)
+            except (ValueError, TypeError):
+                parsed = None
+            if isinstance(parsed, dict) and "reply" in parsed:
+                return text
+            return json.dumps({"reply": text}, ensure_ascii=False)
+        raise ModelError(code="model_response_empty")
+
+    @staticmethod
+    def _decision_tool(meme_ids):
+        properties = {
+            "reply": {"type": "string",
+                      "description": "要发到群里的简短中文回复；决定不接话时填空字符串。"},
+        }
+        if meme_ids:
+            properties["meme_id"] = {
+                "type": "string", "enum": list(meme_ids),
+                "description": "可选的已注册表情编号；不配图时填空字符串。",
+            }
+        return {
+            "type": "function",
+            "function": {
+                "name": "decide_reply",
+                "description": "决定是否在微信群接话，并可从候选中选择一张静态表情。",
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": ["reply"],
+                },
+            },
+        }
+
+    def _payload(self, messages: list[dict[str, str]]) -> dict:
         payload = {"model": self.model, "messages": messages, "stream": False, "max_tokens": self.max_tokens}
         if self.thinking is not None:
             payload["thinking"] = {"type": self.thinking}
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
+        return payload
+
+    def _post(self, payload: dict) -> dict:
+        if not self.api_key:
+            raise ModelError("未配置模型 API 密钥", code="model_key_missing")
         body = json.dumps(payload).encode()
         request = Request(self.url, body, headers={
             "Authorization": f"Bearer {self.api_key}",
@@ -97,28 +185,9 @@ class ChatCompletionsClient:
                 raise ModelError(code="model_response_json_invalid") from exc
             if not isinstance(data, dict):
                 raise ModelError(code="model_response_invalid")
-            choices = data.get("choices")
-            if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-                raise ModelError(code="model_response_invalid")
-            choice = choices[0]
-            if "finish_reason" not in choice:
-                raise ModelError(code="model_response_invalid")
-            finish_reason = choice["finish_reason"]
-            if finish_reason == "length":
-                raise ModelError(code="model_response_incomplete")
-            if finish_reason == "content_filter":
-                raise ModelError(code="model_content_filtered")
-            if finish_reason in ("aborted", "insufficient_system_resource"):
-                raise ModelError(code="model_generation_interrupted")
-            if finish_reason != "stop":
-                raise ModelError(code="model_response_invalid", retryable=False)
-            message = choice.get("message")
-            if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-                raise ModelError(code="model_response_invalid")
-            content = message["content"]
-            if not content.strip():
-                raise ModelError(code="model_response_empty")
-            return content.strip()
+            return data
+        except ModelError:
+            raise
         except HTTPError as exc:
             raise ModelError(code=f"model_http_{exc.code}") from exc
         except TimeoutError as exc:
@@ -130,3 +199,40 @@ class ChatCompletionsClient:
             raise ModelError(code="model_network_error") from exc
         except (KeyError, IndexError, TypeError, ValueError, RecursionError) as exc:
             raise ModelError(code="model_response_invalid") from exc
+
+    @staticmethod
+    def _choice(data: dict) -> dict:
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise ModelError(code="model_response_invalid")
+        choice = choices[0]
+        if "finish_reason" not in choice:
+            raise ModelError(code="model_response_invalid")
+        return choice
+
+    @staticmethod
+    def _check_finish(finish_reason, *, allow_tool_calls: bool = False) -> None:
+        if finish_reason == "length":
+            raise ModelError(code="model_response_incomplete")
+        if finish_reason == "content_filter":
+            raise ModelError(code="model_content_filtered")
+        if finish_reason in ("aborted", "insufficient_system_resource"):
+            raise ModelError(code="model_generation_interrupted")
+        allowed = ("stop", "tool_calls") if allow_tool_calls else ("stop",)
+        if finish_reason not in allowed:
+            raise ModelError(code="model_response_invalid", retryable=False)
+
+    def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
+        payload = self._payload(messages)
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        data = self._post(payload)
+        choice = self._choice(data)
+        self._check_finish(choice["finish_reason"])
+        message = choice.get("message")
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            raise ModelError(code="model_response_invalid")
+        content = message["content"]
+        if not content.strip():
+            raise ModelError(code="model_response_empty")
+        return content.strip()

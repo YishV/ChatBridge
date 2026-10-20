@@ -16,3 +16,4 @@ build/
 
 logs/
 data/runtime/
+state/stickers/outgoing/
