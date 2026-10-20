@@ -27,13 +27,16 @@ def create_model(settings):
 
 
 def create_processor(settings, store):
-    chat = ChatService(create_model(settings), settings.system_prompt or DEFAULT_SYSTEM_PROMPT)
+    chat = ChatService(create_model(settings), settings.system_prompt or DEFAULT_SYSTEM_PROMPT,
+        prompt_file=None if settings.system_prompt else settings.prompt_file)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
 
 
 def run_gateway(args, settings, store):
+    processor = create_processor(settings, store)
+    processor.chat._load_system_prompt()
     config = GatewayConfig.load(settings.gateway_config)
     account, passphrase = config.reader_credentials()
     reader = EncryptedMessageReader(account, passphrase, config.account_id, config.groups)
@@ -44,7 +47,8 @@ def run_gateway(args, settings, store):
         reader.snapshot(group)
     status = {"gatewayReady": health["ready"], "clientVersion": health["version"],
         "modelConfigured": bool(settings.model_api_key), "participationMode": settings.participation_mode,
-        "allowedGroupCount": sum(store.is_allowed(group) for group in config.groups), "paused": store.is_paused()}
+        "allowedGroupCount": sum(store.is_allowed(group) for group in config.groups), "paused": store.is_paused(),
+        "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds}
     if args.check:
         emit(status)
         return
@@ -54,14 +58,14 @@ def run_gateway(args, settings, store):
         raise GatewayError("no_allowed_groups")
     lock_file = settings.state_db.with_suffix(".gateway.lock")
     with SingleInstance(lock_file):
-        service = DeliveryService(create_processor(settings, store), store,
+        service = DeliveryService(processor, store,
             NativeSender(reader, native, store, config.account_id, config.groups))
         runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups)
         runner.initialize()
         emit({"status": "running", **status, "historyReplied": False})
         while True:
             counts = runner.tick()
-            if counts["received"] or args.once:
+            if counts["received"] or counts["naturalEvaluated"] or args.once:
                 emit(counts)
             if args.once:
                 return

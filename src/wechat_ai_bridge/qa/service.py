@@ -5,6 +5,7 @@ import hmac
 import json
 import secrets
 from collections import defaultdict, deque
+from pathlib import Path
 from time import monotonic
 from typing import Protocol
 
@@ -26,9 +27,11 @@ class ModelClient(Protocol):
 
 
 class ChatService:
-    def __init__(self, model: ModelClient, system_prompt: str = DEFAULT_SYSTEM_PROMPT):
+    def __init__(self, model: ModelClient, system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+                 *, prompt_file: Path | None = None):
         self.model = model
         self.system_prompt = system_prompt
+        self.prompt_file = prompt_file
         self._context: dict[str, deque[tuple[float, str, str]]] = defaultdict(lambda: deque(maxlen=20))
         self._alias_key = secrets.token_bytes(32)
 
@@ -46,6 +49,21 @@ class ChatService:
             (monotonic(), "user", f"成员{alias}: {message.text.strip()[:1000]}")
         )
 
+    def _load_system_prompt(self) -> str:
+        if self.prompt_file is None:
+            return self.system_prompt
+        try:
+            with self.prompt_file.open("rb") as source:
+                content = source.read(16 * 1024 + 1)
+            if len(content) > 16 * 1024:
+                raise ValueError
+            prompt = content.decode("utf-8-sig").strip()
+            if not prompt:
+                raise ValueError
+        except (OSError, UnicodeError, ValueError):
+            raise ValueError("人设提示词文件无效或无法读取") from None
+        return prompt
+
     def respond(self, message: IncomingMessage) -> str | None:
         instruction = (
             "本条消息明确 @ 了你，请直接用文字回答。"
@@ -53,7 +71,7 @@ class ChatService:
             '本条消息没有 @ 你。先判断是否适合接话，默认保持沉默；只返回 JSON 对象 '
             '{"reply":null} 或 {"reply":"简短回复"}，不要输出其他内容。'
         )
-        messages = [{"role": "system", "content": self.system_prompt + _SYSTEM_RULES + instruction}]
+        messages = [{"role": "system", "content": self._load_system_prompt() + _SYSTEM_RULES + instruction}]
         messages.extend({"role": role, "content": content}
                         for _, role, content in self._recent(message.group_id))
         json_method = getattr(self.model, "complete_json", None)

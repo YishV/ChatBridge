@@ -168,7 +168,25 @@ class GatewayRunner:
         active = {group for group in self.groups if self.store.is_allowed(group)}
         for removed in set(self.cursors) - active:
             del self.cursors[removed]
-        counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0}
+        counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0,
+                  "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": []}
+
+        def record_result(result, *, natural=False):
+            if result.processed.outcome == Outcome.ERROR:
+                counts["modelErrors"] += 1
+                reason = result.processed.reason
+                if isinstance(reason, str) and reason not in counts["modelErrorCodes"]:
+                    counts["modelErrorCodes"].append(reason)
+            elif result.processed.outcome == Outcome.RATE_LIMITED:
+                counts["rateLimited"] += 1
+            elif result.processed.outcome == Outcome.DEFERRED:
+                counts["deferred"] += 1
+            elif natural and result.processed.outcome == Outcome.IGNORED and result.processed.reason == "model_silent":
+                counts["silent"] += 1
+            if result.delivery == DeliveryOutcome.CONFIRMED:
+                counts["confirmed"] += 1
+            elif result.delivery == DeliveryOutcome.UNCONFIRMED:
+                counts["unconfirmed"] += 1
         for group in sorted(active):
             if group not in self.cursors:
                 self.cursors[group] = self.reader.snapshot(group)
@@ -194,12 +212,8 @@ class GatewayRunner:
                     continue
                 result = self.service.handle(incoming)
                 counts["received"] += 1
-                if result.processed.outcome == Outcome.ERROR:
-                    counts["modelErrors"] += 1
-                elif result.processed.outcome == Outcome.RATE_LIMITED:
-                    counts["rateLimited"] += 1
-                if result.delivery == DeliveryOutcome.CONFIRMED:
-                    counts["confirmed"] += 1
-                elif result.delivery == DeliveryOutcome.UNCONFIRMED:
-                    counts["unconfirmed"] += 1
+                record_result(result)
+        for result in self.service.flush_pending():
+            counts["naturalEvaluated"] += 1
+            record_result(result, natural=True)
         return counts

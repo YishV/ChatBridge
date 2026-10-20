@@ -28,6 +28,14 @@ def message(message_id="m1", *, group="group-a", sender="wxid-real-a", text="周
     return IncomingMessage(message_id, group, sender, text, mentioned)
 
 
+class FakeClock:
+    def __init__(self):
+        self.now = 0
+
+    def __call__(self):
+        return self.now
+
+
 class ChatTests(unittest.TestCase):
     def setUp(self):
         self.model = FakeModel()
@@ -114,11 +122,14 @@ class ProcessorTests(unittest.TestCase):
         self.store.allow_group("group-a")
         self.model = FakeModel('{"reply":null}')
         self.chat = chat_module.ChatService(self.model)
-        self.processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0)
+        self.clock = FakeClock()
+        self.processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0, clock=self.clock)
 
     def test_natural_silence_is_persistently_deduplicated(self):
         incoming = message(mentioned=False)
         self.assertIsNone(self.processor.process(incoming).reply)
+        self.clock.now = 5
+        self.assertEqual(self.processor.flush_pending()[0][1].reason, "model_silent")
         reopened = StateStore(self.path)
         self.addCleanup(reopened.close)
         processor = MessageProcessor(reopened, self.chat, cooldown_seconds=0)
@@ -129,6 +140,7 @@ class ProcessorTests(unittest.TestCase):
         processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0, participation_mode="mentions")
         self.assertEqual(processor.process(message(mentioned=False, text="大家想吃火锅")).outcome, Outcome.IGNORED)
         self.assertEqual(self.model.calls, [])
+        self.assertEqual(processor.flush_pending(), [])
         self.model.response = "那就火锅吧。"
         self.assertEqual(processor.process(message("m2", text="你觉得呢？")).outcome, Outcome.ANSWERED)
         self.assertIn("大家想吃火锅", json.dumps(self.model.calls[-1], ensure_ascii=False))
@@ -142,19 +154,112 @@ class ProcessorTests(unittest.TestCase):
         self.assertEqual(self.processor.process(message()).outcome, Outcome.IGNORED)
         self.assertEqual(self.model.calls, [])
 
-    def test_natural_cooldown_is_at_least_thirty_seconds_and_at_can_reply(self):
-        self.processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0, spontaneous_cooldown_seconds=0)
+    def test_burst_restarts_five_second_deadline_and_keeps_full_context(self):
+        processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0,
+                                     spontaneous_cooldown_seconds=0, clock=self.clock)
+        first = message(mentioned=False, text="周末去哪玩")
+        latest = message("m2", mentioned=False, text="我想去公园")
+        self.assertEqual(processor.process(first).outcome, Outcome.DEFERRED)
+        self.clock.now = 4
+        self.assertEqual(processor.process(latest).outcome, Outcome.DEFERRED)
+        self.clock.now = 5
+        self.assertEqual(processor.flush_pending(), [])
+        self.assertEqual(self.model.calls, [])
+        self.assertEqual(self.store.connection.execute("SELECT COUNT(*) FROM messages").fetchone()[0], 0)
+        self.clock.now = 9
+        self.model.response = '{"reply":"一起去吧"}'
+        flushed = processor.flush_pending()
+        self.assertEqual(flushed[0][0], latest)
+        self.assertEqual(flushed[0][1].outcome, Outcome.ANSWERED)
+        self.assertEqual(len(self.model.calls), 1)
+        request = json.dumps(self.model.calls[0], ensure_ascii=False)
+        self.assertIn(first.text, request)
+        self.assertIn(latest.text, request)
+        self.assertEqual(processor.flush_pending(), [])
+        self.assertEqual(processor.process(first).outcome, Outcome.DUPLICATE)
+        self.assertEqual(processor.process(latest).outcome, Outcome.DUPLICATE)
+
+    def test_explicit_mention_cancels_pending_and_replies_immediately(self):
         self.processor.process(message(mentioned=False))
-        self.assertEqual(self.processor.process(message("m2", mentioned=False)).outcome, Outcome.RATE_LIMITED)
         self.model.response = "被叫到啦。"
         self.assertEqual(self.processor.process(message("m3")).outcome, Outcome.ANSWERED)
+        self.clock.now = 20
+        self.assertEqual(self.processor.flush_pending(), [])
+        self.assertEqual(len(self.model.calls), 1)
+
+    def test_configured_longer_delay_is_respected(self):
+        processor = MessageProcessor(self.store, self.chat, clock=self.clock,
+                                     spontaneous_cooldown_seconds=10)
+        processor.process(message(mentioned=False))
+        self.clock.now = 9
+        self.assertEqual(processor.flush_pending(), [])
+        self.clock.now = 10
+        self.assertEqual(len(processor.flush_pending()), 1)
+
+    def test_pause_and_revoked_group_discard_pending_without_resume_reply(self):
+        for action in ("pause", "deny"):
+            with self.subTest(action=action):
+                self.store.set_paused(False)
+                self.store.allow_group("group-a")
+                self.processor.process(message(action, mentioned=False))
+                if action == "pause":
+                    self.store.set_paused(True)
+                else:
+                    self.store.deny_group("group-a")
+                results = self.processor.flush_pending()
+                self.assertEqual(results[0][1].outcome, Outcome.IGNORED)
+                self.store.set_paused(False)
+                self.store.allow_group("group-a")
+                self.assertEqual(self.processor.flush_pending(), [])
+        self.assertEqual(self.model.calls, [])
+
+    def test_pending_deadlines_are_independent_between_groups(self):
+        self.store.allow_group("group-b")
+        self.processor.process(message("a1", mentioned=False))
+        self.clock.now = 3
+        self.processor.process(message("b1", group="group-b", mentioned=False))
+        self.clock.now = 5
+        self.assertEqual([incoming.group_id for incoming, _ in self.processor.flush_pending()], ["group-a"])
+        self.clock.now = 8
+        self.assertEqual([incoming.group_id for incoming, _ in self.processor.flush_pending()], ["group-b"])
         self.assertEqual(len(self.model.calls), 2)
 
     def test_hourly_quota_counts_silent_model_calls(self):
-        processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0, hourly_quota=1)
+        processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0, hourly_quota=1,
+                                     clock=self.clock)
         processor.process(message(mentioned=False))
+        self.clock.now = 5
+        processor.flush_pending()
         self.assertEqual(processor.process(message("m2")).outcome, Outcome.RATE_LIMITED)
         self.assertEqual(len(self.model.calls), 1)
+
+    def test_pending_is_not_restored_after_restart(self):
+        incoming = message(mentioned=False)
+        self.processor.process(incoming)
+        reopened = StateStore(self.path)
+        self.addCleanup(reopened.close)
+        restarted = MessageProcessor(reopened, self.chat, clock=self.clock)
+        self.clock.now = 5
+        self.assertEqual(restarted.flush_pending(), [])
+        self.assertEqual(restarted.process(incoming).outcome, Outcome.DUPLICATE)
+        self.assertEqual(self.model.calls, [])
+
+    def test_failed_pending_is_not_retried_and_has_safe_reason(self):
+        self.model.response = ModelError("private diagnostic")
+        self.processor.process(message(mentioned=False))
+        self.clock.now = 5
+        result = self.processor.flush_pending()[0][1]
+        self.assertEqual(result.outcome, Outcome.ERROR)
+        self.assertEqual(result.reason, self.model.response.code)
+        self.assertNotIn("private diagnostic", result.reason)
+        self.assertEqual(self.processor.flush_pending(), [])
+        self.assertEqual(len(self.model.calls), 1)
+
+    def test_configuration_failure_has_fixed_reason(self):
+        self.model.response = OSError("private prompt path")
+        result = self.processor.process(message())
+        self.assertEqual(result.outcome, Outcome.ERROR)
+        self.assertEqual(result.reason, "prompt_or_chat_configuration")
 
     def test_failure_has_no_reply_and_is_persistently_deduplicated(self):
         self.model.response = ModelError("do not send diagnostics")

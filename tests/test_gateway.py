@@ -14,6 +14,14 @@ from wechat_ai_bridge.wechat.instance import SingleInstance
 from wechat_ai_bridge.wechat.delivery import DeliveryService
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
 from wechat_ai_bridge.qa.service import ChatService
+from wechat_ai_bridge.message import Outcome, ProcessResult
+from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, DeliveryResult
+
+
+def service_mock():
+    service = Mock()
+    service.flush_pending.return_value = []
+    return service
 
 
 class GatewayTests(unittest.TestCase):
@@ -34,7 +42,7 @@ class GatewayTests(unittest.TestCase):
         reader = Mock()
         reader.snapshot.return_value = {"message_0.db": 10}
         reader.read_after.return_value = [self.row()]
-        service = Mock()
+        service = service_mock()
         runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}), clock=lambda: 1005)
         runner.initialize()
         reader.read_after.assert_not_called()
@@ -49,7 +57,7 @@ class GatewayTests(unittest.TestCase):
         reader = Mock()
         reader.snapshot.return_value = {"message_0.db": 10}
         reader.read_after.return_value = [self.row(server_id=0), self.row(local_id=12, server_id=101)]
-        service = Mock()
+        service = service_mock()
         runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}), clock=lambda: 1005)
         runner.initialize()
         runner.tick()
@@ -57,7 +65,7 @@ class GatewayTests(unittest.TestCase):
         service.handle.assert_not_called()
 
     def test_old_history_in_new_shard_is_not_replied_to(self):
-        reader, service = Mock(), Mock()
+        reader, service = Mock(), service_mock()
         reader.snapshot.return_value = {}
         reader.read_after.return_value = [replace(self.row(), create_time=100)]
         runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}), clock=lambda: 1005)
@@ -70,7 +78,7 @@ class GatewayTests(unittest.TestCase):
         reader = Mock()
         reader.snapshot.side_effect = [{"message_0.db": 10}, {"message_0.db": 20}]
         reader.read_after.return_value = []
-        runner = GatewayRunner(reader, Mock(), Mock(), self.store, "bot", frozenset({self.group}))
+        runner = GatewayRunner(reader, Mock(), service_mock(), self.store, "bot", frozenset({self.group}))
         runner.initialize()
         self.store.deny_group(self.group)
         runner.tick()
@@ -80,13 +88,25 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(runner.cursors[self.group], {"message_0.db": 20})
 
     def test_health_failure_stops_before_reading_or_sending(self):
-        reader, native, service = Mock(), Mock(), Mock()
+        reader, native, service = Mock(), Mock(), service_mock()
         native.health.side_effect = GatewayError("native_unavailable")
         runner = GatewayRunner(reader, native, service, self.store, "bot", frozenset({self.group}))
         with self.assertRaises(GatewayError):
             runner.initialize()
         reader.snapshot.assert_not_called()
         service.handle.assert_not_called()
+
+    def test_quiet_poll_flushes_due_natural_reply_and_reports_it(self):
+        reader, service = Mock(), service_mock()
+        reader.snapshot.return_value = {"message_0.db": 10}
+        reader.read_after.return_value = []
+        service.flush_pending.return_value = [DeliveryResult(ProcessResult(Outcome.ANSWERED, "回答"), DeliveryOutcome.CONFIRMED)]
+        runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}))
+        runner.initialize()
+        counts = runner.tick()
+        self.assertEqual(counts["received"], 0)
+        self.assertEqual(counts["naturalEvaluated"], 1)
+        self.assertEqual(counts["confirmed"], 1)
 
     def test_sender_requires_new_matching_self_record_with_server_id(self):
         reader, native = Mock(), Mock()

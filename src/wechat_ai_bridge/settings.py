@@ -17,11 +17,12 @@ class Settings:
     cooldown_seconds: int = 5
     hourly_quota: int = 60
     participation_mode: str = "natural"
-    spontaneous_cooldown_seconds: int = 30
+    spontaneous_cooldown_seconds: int = 5
     model_thinking: str = "disabled"
     gateway_config: Path = Path("data/runtime/native-hook/gateway.json")
     poll_seconds: float = 2.0
     system_prompt: str = ""
+    prompt_file: Path = Path("config/persona.md")
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -39,17 +40,18 @@ class Settings:
             cooldown_seconds=int(os.getenv("WECHAT_AI_BRIDGE_COOLDOWN_SECONDS", "5")),
             hourly_quota=int(os.getenv("WECHAT_AI_BRIDGE_HOURLY_QUOTA", "60")),
             participation_mode=os.getenv("WECHAT_AI_BRIDGE_PARTICIPATION_MODE", "natural"),
-            spontaneous_cooldown_seconds=int(os.getenv("WECHAT_AI_BRIDGE_SPONTANEOUS_COOLDOWN_SECONDS", "30")),
+            spontaneous_cooldown_seconds=int(os.getenv("WECHAT_AI_BRIDGE_SPONTANEOUS_COOLDOWN_SECONDS", "5")),
             model_thinking=os.getenv("WECHAT_AI_BRIDGE_MODEL_THINKING", "disabled"),
             gateway_config=Path(os.getenv("WECHAT_AI_BRIDGE_GATEWAY_CONFIG", "data/runtime/native-hook/gateway.json")),
             poll_seconds=float(os.getenv("WECHAT_AI_BRIDGE_POLL_SECONDS", "2")),
             system_prompt=os.getenv("WECHAT_AI_BRIDGE_SYSTEM_PROMPT", ""),
+            prompt_file=Path(os.getenv("WECHAT_AI_BRIDGE_PROMPT_FILE", "config/persona.md")),
         )
         if (result.participation_mode not in ("natural", "mentions")
                 or result.model_thinking not in ("enabled", "disabled")
                 or not 1 <= result.poll_seconds <= 60
                 or not 0 <= result.cooldown_seconds <= 3600
-                or not 30 <= result.spontaneous_cooldown_seconds <= 3600
+                or not 5 <= result.spontaneous_cooldown_seconds <= 3600
                 or not 1 <= result.hourly_quota <= 1000):
             raise ValueError("聊天频率或参与方式配置无效")
         return result

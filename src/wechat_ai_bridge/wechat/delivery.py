@@ -41,7 +41,13 @@ class DeliveryService:
         self.sender = sender
 
     def handle(self, message: IncomingMessage) -> DeliveryResult:
-        processed = self.processor.process(message)
+        return self._deliver(message, self.processor.process(message))
+
+    def flush_pending(self) -> list[DeliveryResult]:
+        return [self._deliver(message, processed)
+                for message, processed in self.processor.iter_pending()]
+
+    def _deliver(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
         if not processed.reply:
             return DeliveryResult(processed, DeliveryOutcome.NOT_SENT)
         if self.store.is_paused():

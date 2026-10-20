@@ -1,6 +1,7 @@
 import json
 import unittest
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
 from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
 
@@ -33,6 +34,22 @@ class ModelClientTests(unittest.TestCase):
         body = json.loads(opener.open.call_args.args[0].data)
         self.assertEqual(body["response_format"], {"type": "json_object"})
         self.assertEqual(body["thinking"], {"type": "disabled"})
+
+    def test_failure_codes_distinguish_http_timeout_and_incomplete_output(self):
+        for error, expected in [(HTTPError('https://api.deepseek.com', 429, 'private body', {}, None), 'model_http_429'),
+                                (TimeoutError('private body'), 'model_timeout')]:
+            opener = Mock()
+            opener.open.side_effect = error
+            with self.subTest(code=expected), patch('wechat_ai_bridge.models.client.build_opener', return_value=opener):
+                with self.assertRaises(ModelError) as caught:
+                    self.client().complete([{'role': 'user', 'content': 'private message'}])
+                self.assertEqual(caught.exception.code, expected)
+                self.assertNotIn('private', caught.exception.code)
+        payload = {'choices': [{'finish_reason': 'length', 'message': {'content': 'private content'}}]}
+        with patch('wechat_ai_bridge.models.client.build_opener', return_value=self.opener(payload)):
+            with self.assertRaises(ModelError) as caught:
+                self.client().complete([{'role': 'user', 'content': 'private message'}])
+            self.assertEqual(caught.exception.code, 'model_response_incomplete')
 
 
 if __name__ == "__main__":

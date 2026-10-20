@@ -19,6 +19,7 @@ class Outcome(StrEnum):
     IGNORED = "ignored"
     DUPLICATE = "duplicate"
     RATE_LIMITED = "rate_limited"
+    DEFERRED = "deferred"
     ANSWERED = "answered"
     UNCERTAIN = "uncertain"
     ERROR = "error"
@@ -28,3 +29,4 @@ class Outcome(StrEnum):
 class ProcessResult:
     outcome: Outcome
     reply: str | None = None
+    reason: str | None = None
