@@ -11,7 +11,7 @@ from wechat_ai_bridge.message import Outcome
 from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, SendReceipt
 from wechat_ai_bridge.wechat.errors import GatewayError, GatewayFatalError
 from wechat_ai_bridge.wechat.events import normalize_gateway_message
-from wechat_ai_bridge.wechat.native import native_group_message
+from wechat_ai_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat
 from wechat_ai_bridge.wechat.windows import unprotect_credential, verify_native_process
 
 
@@ -169,7 +169,7 @@ class GatewayRunner:
         for removed in set(self.cursors) - active:
             del self.cursors[removed]
         counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0,
-                  "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": []}
+                  "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": [], "patReceived": 0}
 
         def record_result(result, *, natural=False):
             if result.processed.outcome == Outcome.ERROR:
@@ -196,7 +196,7 @@ class GatewayRunner:
             for row in self.reader.read_after(group, cursors):
                 if row.shard in blocked:
                     continue
-                if (row.local_type == 1 and row.sender_id != self.account_id and row.server_id <= 0
+                if (row.local_type in (1, PAT_TYPE) and row.sender_id != self.account_id and row.server_id <= 0
                         and row.create_time >= self.started_at - 30):
                     blocked.add(row.shard)
                     continue
@@ -205,13 +205,16 @@ class GatewayRunner:
                 cursors[row.shard] = max(cursors.get(row.shard, 0), row.local_id)
                 if row.create_time < self.started_at - 30:
                     continue
-                raw = native_group_message(account_id=self.account_id, group_id=group, sender_id=row.sender_id,
+                mapper = native_group_pat if row.local_type == PAT_TYPE else native_group_message
+                raw = mapper(account_id=self.account_id, group_id=group, sender_id=row.sender_id,
                     server_id=row.server_id, local_type=row.local_type, message_content=row.text, source=row.source)
                 incoming = normalize_gateway_message(raw, self.account_id) if raw else None
                 if incoming is None:
                     continue
                 result = self.service.handle(incoming)
                 counts["received"] += 1
+                if incoming.interaction == "pat":
+                    counts["patReceived"] += 1
                 record_result(result)
         for result in self.service.flush_pending():
             counts["naturalEvaluated"] += 1

@@ -33,7 +33,7 @@ class MessageProcessor:
         if not self.store.claim_event(message.message_id, message.group_id):
             return ProcessResult(Outcome.DUPLICATE)
         self.chat.observe(message)
-        if not message.mentioned_bot:
+        if not message.is_directed:
             if self.participation_mode == "mentions":
                 return ProcessResult(Outcome.IGNORED)
             self._pending[message.group_id] = (message, self.clock() + self.spontaneous_cooldown_seconds)
@@ -60,7 +60,7 @@ class MessageProcessor:
             yield message, result
 
     def _respond(self, message: IncomingMessage) -> ProcessResult:
-        cooldown = self.cooldown_seconds if message.mentioned_bot else self.spontaneous_cooldown_seconds
+        cooldown = self.cooldown_seconds if message.is_directed else self.spontaneous_cooldown_seconds
         reservation = self.store.reserve(message.message_id, message.group_id, cooldown, self.hourly_quota)
         if reservation == "duplicate":
             return ProcessResult(Outcome.DUPLICATE)

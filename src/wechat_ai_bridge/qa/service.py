@@ -66,6 +66,9 @@ class ChatService:
 
     def respond(self, message: IncomingMessage) -> str | None:
         instruction = (
+            "群友刚刚通过微信原生拍一拍拍了拍你，请按当前人设简短地用文字回应这次互动。"
+            "不能声称已拍回去或执行其他未实现的动作。"
+            if message.interaction == "pat" else
             "本条消息明确 @ 了你，请直接用文字回答。"
             if message.mentioned_bot else
             '本条消息没有 @ 你。先判断是否适合接话，默认保持沉默；只返回 JSON 对象 '
@@ -75,11 +78,11 @@ class ChatService:
         messages.extend({"role": role, "content": content}
                         for _, role, content in self._recent(message.group_id))
         json_method = getattr(self.model, "complete_json", None)
-        response = (json_method(messages) if not message.mentioned_bot and callable(json_method)
+        response = (json_method(messages) if not message.is_directed and callable(json_method)
                     else self.model.complete(messages))
         if not isinstance(response, str):
             return None
-        if message.mentioned_bot:
+        if message.is_directed:
             return response.strip()[:800] or None
         try:
             data = json.loads(response)

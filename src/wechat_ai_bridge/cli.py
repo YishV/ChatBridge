@@ -7,6 +7,8 @@ import time
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
 from wechat_ai_bridge.message import IncomingMessage
 from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
+from wechat_ai_bridge.media.cover import add_cover_parser, run_cover
+from wechat_ai_bridge.media.kits import CoverError
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
@@ -75,6 +77,7 @@ def run_gateway(args, settings, store):
 def main() -> None:
     parser = argparse.ArgumentParser(description="通用微信群 AI 聊天机器人")
     commands = parser.add_subparsers(dest="command", required=True)
+    add_cover_parser(commands)
     ask = commands.add_parser("ask", help="本机模拟群文本，不向微信发送")
     ask.add_argument("--group", required=True)
     ask.add_argument("--sender", required=True)
@@ -92,6 +95,9 @@ def main() -> None:
     args = parser.parse_args()
     store = None
     try:
+        if args.command == 'cover':
+            run_cover(args, emit)
+            return
         settings = Settings.from_env()
         if args.command == "model-check":
             response = create_model(settings).complete([{"role": "user", "content": "请仅回复一个字：好"}])
@@ -118,6 +124,9 @@ def main() -> None:
             emit({"outcome": result.outcome, "reply": result.reply})
     except KeyboardInterrupt:
         emit({"status": "stopped"})
+    except CoverError as error:
+        emit({"status": "cover_unavailable", "error": error.code})
+        raise SystemExit(1) from None
     except GatewayError as error:
         emit({"status": "stopped", "error": str(error)})
         raise SystemExit(1) from None

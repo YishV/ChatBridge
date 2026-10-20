@@ -7,14 +7,92 @@ caller supplies resolved account, group and sender IDs alongside native fields.
 import hashlib
 import json
 import re
+from dataclasses import replace
 from xml.etree import ElementTree
 
 from wechat_ai_bridge.wechat.events import GatewayMessage
 
 
 MAX_SOURCE_BYTES = 64 * 1024
+PAT_TYPE = (62 << 32) | 49
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.@-]{0,255}\Z")
+
+
+def native_group_pat(
+    *, account_id: str, group_id: str, sender_id: str | None, server_id: int | str,
+    local_type: int, message_content: str | bytes, source: str | bytes | None = None,
+) -> GatewayMessage | None:
+    """Map a confirmed native group pat directed at the current bot account."""
+    if type(local_type) is not int or local_type != PAT_TYPE:
+        return None
+    root = _native_xml(message_content)
+    if root is None or root.tag != "msg" or root.attrib:
+        return None
+    apps = _direct_elements(root, "appmsg")
+    if apps is None or len(apps) != 1:
+        return None
+    app = apps[0]
+    types = _direct_elements(app, "type")
+    pats = _direct_elements(app, "patinfo")
+    if (types is None or len(types) != 1 or _flat_text(types[0]) != "62"
+            or pats is None or len(pats) != 1 or pats[0].attrib):
+        return None
+    pat = pats[0]
+    if any((element.text or "").strip() or any((child.tail or "").strip() for child in element)
+           for element in (root, app, pat)):
+        return None
+    fields = {}
+    for name in ("fromusername", "chatusername", "pattedusername"):
+        elements = _direct_elements(pat, name)
+        if elements is None or len(elements) != 1:
+            return None
+        value = _flat_text(elements[0])
+        if value is None or not _IDENTIFIER.fullmatch(value):
+            return None
+        fields[name] = value
+    actor = fields["fromusername"]
+    root_senders = root.findall("fromusername")
+    # The observed XML also contains an optional empty root-level sender. Only
+    # that field and patinfo's actor may use this tag anywhere in the message.
+    expected_senders = [pat.find("fromusername"), *root_senders]
+    all_senders = [element for element in root.iter()
+                   if element.tag.rsplit("}", 1)[-1] == "fromusername"]
+    if (len(root_senders) > 1 or len(all_senders) != len(expected_senders)
+            or any(element not in expected_senders for element in all_senders)):
+        return None
+    if root_senders and _flat_text(root_senders[0]) not in ("", actor):
+        return None
+    # Reject nested/namespaced copies outside patinfo as well as within it.
+    for name in ("patinfo", "chatusername", "pattedusername"):
+        expected = pat if name == "patinfo" else pat.find(name)
+        if [element for element in root.iter()
+                if element.tag.rsplit("}", 1)[-1] == name] != [expected]:
+            return None
+    if (actor == account_id or fields["pattedusername"] != account_id
+            or fields["chatusername"] != group_id
+            or sender_id is not None and (not isinstance(sender_id, str)
+                                         or sender_id not in ("", actor))):
+        return None
+    message = native_group_message(
+        account_id=account_id, group_id=group_id, sender_id=actor, server_id=server_id,
+        local_type=1, message_content="[拍一拍] 群友拍了拍你。", source=None,
+    )
+    return replace(message, message_type="pat", target_account_id=account_id) if message else None
+
+
+def _flat_text(element: ElementTree.Element) -> str | None:
+    if element.attrib or len(element):
+        return None
+    return (element.text or "").strip()
+
+
+def _direct_elements(parent: ElementTree.Element, name: str) -> list[ElementTree.Element] | None:
+    """Find direct unnamespaced fields, refusing hidden or namespaced copies."""
+    direct = parent.findall(name)
+    all_fields = [element for element in parent.iter()
+                  if element.tag.rsplit("}", 1)[-1] == name]
+    return direct if all_fields == direct else None
 
 
 def _source_text(source: str | bytes | None) -> str | None:
@@ -36,15 +114,40 @@ def _source_text(source: str | bytes | None) -> str | None:
                     return None
                 # Known frame sizes are checked above: max_output_size alone
                 # only bounds frames whose decompressed size is unspecified.
+                compressed = source
                 source = zstandard.ZstdDecompressor().decompress(
                     source, max_output_size=MAX_SOURCE_BYTES, allow_extra_data=False,
                 )
+                # Unknown-size frames can ignore allow_extra_data in the
+                # native binding. After the bounded pass, verify that exactly
+                # one complete frame consumed all input. Its output is already
+                # known to fit the same limit.
+                verifier = zstandard.ZstdDecompressor().decompressobj()
+                verifier.decompress(compressed)
+                if not verifier.eof or verifier.unused_data:
+                    return None
             except zstandard.ZstdError:
                 return None
         if len(source) > MAX_SOURCE_BYTES:
             return None
-        return source.decode("utf-8", errors="strict")
+        return source.decode("utf-8-sig", errors="strict")
     except UnicodeError:
+        return None
+
+
+def _native_xml(source: str | bytes | None) -> ElementTree.Element | None:
+    """Decode bounded native XML while rejecting alternate encodings and DTDs."""
+    text = _source_text(source)
+    # UTF-16 ASCII bytes can pass UTF-8 decoding as ASCII plus NUL. Reject NUL
+    # before XML parsing can autodetect UTF-16 and bypass the declaration guard.
+    if text is None or "\x00" in text or re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", text, re.IGNORECASE):
+        return None
+    encoding = re.search(r"<\?xml\b[^?]*\bencoding\s*=\s*(['\"])(.*?)\1", text, re.IGNORECASE)
+    if encoding and encoding.group(2).lower() not in ("utf-8", "utf8"):
+        return None
+    try:
+        return ElementTree.fromstring(text)
+    except (ElementTree.ParseError, ValueError):
         return None
 
 
@@ -55,17 +158,8 @@ Only the unnamespaced msgsource root and its direct, flat atuserlist are trusted
 Unrelated native metadata is ignored; nested, duplicate or namespaced mention
 lists are rejected. Both compressed and decoded data are limited to 64 KiB.
 """
-    text = _source_text(source)
-    # UTF-16 ASCII bytes can pass UTF-8 decoding as ASCII plus NUL. Reject NUL
-    # before XML parsing can autodetect UTF-16 and bypass the declaration guard.
-    if text is None or "\x00" in text or re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", text, re.IGNORECASE):
-        return None
-    encoding = re.search(r"<\?xml\b[^?]*\bencoding\s*=\s*(['\"])(.*?)\1", text, re.IGNORECASE)
-    if encoding and encoding.group(2).lower() not in ("utf-8", "utf8"):
-        return None
-    try:
-        root = ElementTree.fromstring(text)
-    except (ElementTree.ParseError, ValueError):
+    root = _native_xml(source)
+    if root is None:
         return None
     if root.tag != "msgsource" or root.attrib or (root.text or "").strip():
         return None

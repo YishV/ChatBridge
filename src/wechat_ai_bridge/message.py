@@ -13,6 +13,11 @@ class IncomingMessage:
     mentioned_bot: bool
     is_group: bool = True
     is_from_bot: bool = False
+    interaction: str = "text"
+
+    @property
+    def is_directed(self) -> bool:
+        return self.mentioned_bot or self.interaction == "pat"
 
 
 class Outcome(StrEnum):

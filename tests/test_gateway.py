@@ -108,6 +108,44 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(counts["naturalEvaluated"], 1)
         self.assertEqual(counts["confirmed"], 1)
 
+    def test_native_pat_missing_db_sender_is_resolved_from_verified_actor(self):
+        reader, service = Mock(), service_mock()
+        reader.snapshot.return_value = {"message_0.db": 10}
+        body = ('<msg><appmsg appid="" sdkver="0"><type>62</type><patinfo>'
+                '<fromusername>member</fromusername><chatusername>fixture@chatroom</chatusername>'
+                '<pattedusername>bot</pattedusername><template>ignored display text</template>'
+                '</patinfo></appmsg><fromusername/></msg>')
+        reader.read_after.return_value = [replace(self.row(), sender_id="", local_type=(62 << 32) | 49, text=body)]
+        runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}), clock=lambda: 1005)
+        runner.initialize()
+        counts = runner.tick()
+        self.assertEqual(service.handle.call_count, 1)
+        incoming = service.handle.call_args.args[0]
+        self.assertEqual(incoming.sender_id, "member")
+        self.assertEqual(incoming.interaction, "pat")
+        self.assertFalse(incoming.mentioned_bot)
+        self.assertTrue(incoming.is_directed)
+        self.assertNotIn("ignored display text", incoming.text)
+        self.assertEqual(counts["patReceived"], 1)
+
+    def test_pending_pat_waits_for_server_id_before_advancing_cursor(self):
+        reader, service = Mock(), service_mock()
+        reader.snapshot.return_value = {"message_0.db": 10}
+        body = ('<msg><appmsg><type>62</type><patinfo><fromusername>member</fromusername>'
+                '<chatusername>fixture@chatroom</chatusername><pattedusername>bot</pattedusername>'
+                '</patinfo></appmsg></msg>')
+        pending = replace(self.row(), server_id=0, sender_id="", local_type=(62 << 32) | 49, text=body)
+        reader.read_after.return_value = [pending]
+        runner = GatewayRunner(reader, Mock(), service, self.store, "bot", frozenset({self.group}), clock=lambda: 1005)
+        runner.initialize()
+        runner.tick()
+        self.assertEqual(runner.cursors[self.group]["message_0.db"], 10)
+        service.handle.assert_not_called()
+        reader.read_after.return_value = [replace(pending, server_id=101)]
+        self.assertEqual(runner.tick()["patReceived"], 1)
+        self.assertEqual(runner.cursors[self.group]["message_0.db"], 11)
+        service.handle.assert_called_once()
+
     def test_sender_requires_new_matching_self_record_with_server_id(self):
         reader, native = Mock(), Mock()
         native.send_text.return_value = {"ret": 0}

@@ -10,6 +10,7 @@ dependencies = ["python-dotenv>=1.0,<2"]
 wechat-ai-bridge = "wechat_ai_bridge.cli:main"
 
 [project.optional-dependencies]
+media = ["imageio-ffmpeg>=0.6,<0.7"]
 native = [
     "zstandard>=0.25,<0.26",
     "sqlcipher3>=0.6.2,<0.7",
