@@ -78,6 +78,47 @@ $oneBotToken = Get-EnvValue $envMap 'QQ_ONEBOT_TOKEN'
 $webhookPort = [int](Get-EnvValue $envMap 'QQ_WEBHOOK_PORT' '8081')
 $defaultNapCat = Get-EnvValue $envMap 'NAPCAT_HOME' (Join-Path $Root 'tools\NapCat.Shell')
 if (-not $NapCatHome) { $NapCatHome = $defaultNapCat }
+$voiceEnabled = (Get-EnvValue $envMap 'QQ_VOICE_ENABLED' 'false').ToLower() -eq 'true'
+$gptHome = Get-EnvValue $envMap 'GPT_SOVITS_HOME' ''
+if (-not $gptHome) {
+    $candidates = Get-ChildItem -LiteralPath (Join-Path $Root 'tools\GPT-SoVITS-v2') `
+        -Directory -Filter 'GPT-SoVITS-*' -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending
+    if ($candidates) { $gptHome = $candidates[0].FullName }
+}
+$gptLauncher = Join-Path $PSScriptRoot 'start-gpt-sovits.ps1'
+
+function Start-GptSoVits {
+    if (-not $voiceEnabled) {
+        Write-Step 'QQ 语音未启用，跳过 GPT-SoVITS'
+        return
+    }
+    if (-not $gptHome -or -not (Test-Path -LiteralPath (Join-Path $gptHome 'runtime\python.exe'))) {
+        Write-Warning '未找到 GPT-SoVITS 运行时；请设置 GPT_SOVITS_HOME 或手动启动 api_v2.py。'
+        return
+    }
+    if (Get-NetTCPConnection -State Listen -LocalPort 9880 -ErrorAction SilentlyContinue) {
+        Write-Step 'GPT-SoVITS 已在 9880 运行'
+        return
+    }
+    if (-not (Test-Path -LiteralPath $gptLauncher)) {
+        Write-Warning "缺少 $gptLauncher；跳过 GPT-SoVITS。"
+        return
+    }
+    Write-Step '启动 GPT-SoVITS API（独立窗口）'
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+        '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', $gptLauncher, '-GptHome', $gptHome
+    ) -WorkingDirectory $gptHome
+    if ($NoWait) { return }
+    for ($i = 0; $i -lt 60; $i += 2) {
+        if (Get-NetTCPConnection -State Listen -LocalPort 9880 -ErrorAction SilentlyContinue) {
+            Write-Step 'GPT-SoVITS API 已就绪'
+            return
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw 'GPT-SoVITS API 在 60 秒内未就绪；请查看独立窗口。'
+}
 
 function Start-NapCatIfNeeded {
     $running = Get-Process -Name 'NapCatWinBootMain' -ErrorAction SilentlyContinue
@@ -110,6 +151,7 @@ function Start-QQ {
         Write-Warning "端口 $webhookPort 已有监听，QQ 网关可能已经启动。"
         return
     }
+    Start-GptSoVits
     Start-NapCatIfNeeded
     Write-Step '启动 QQ 网关；按 Ctrl+C 停止'
     & $python -m wechat_ai_bridge qq run

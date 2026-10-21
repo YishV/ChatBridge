@@ -67,7 +67,7 @@ uv run --extra native wechat-ai-bridge qq check
 ### 2.3 推荐：启动脚本
 
 ```powershell
-# 只启动 QQ（会尝试拉起 NapCat）
+# 只启动 QQ（会尝试拉起 NapCat；语音开启时还会拉起 GPT-SoVITS）
 .\scripts\start.ps1 -Target qq
 
 # 只启动微信
@@ -84,6 +84,12 @@ uv run --extra native wechat-ai-bridge qq check
 ```
 
 如果 NapCat 需要扫码，脚本会提示先登录，然后再启动网关。
+
+QQ 语音开启时，脚本会在 9880 未监听的情况下用独立窗口启动 GPT-SoVITS，并等待 API 就绪。也可以单独启动：
+
+```powershell
+.\scripts\start-gpt-sovits.ps1
+```
 
 ## 3. 验证
 

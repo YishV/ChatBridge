@@ -31,7 +31,7 @@ notepad .env
 ### 推荐：启动脚本
 
 ```powershell
-# QQ：自动尝试拉起 NapCat，再启动 QQ 网关
+# QQ：自动尝试拉起 NapCat；语音开启时同时拉起 GPT-SoVITS
 .\scripts\start.ps1 -Target qq
 
 # 微信：只启动微信网关
