@@ -38,7 +38,7 @@ python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
 
 ## 配置
 
-NapCat 的 OneBot 配置在 `D:\NapCat.Shell\config\onebot11_<QQ号>.json`（以实际安装目录为准），也可以在 NapCat WebUI 的“网络配置”里建：
+NapCat 的 OneBot 配置在 `tools/NapCat.Shell\config\onebot11_<QQ号>.json`（以实际安装目录为准），也可以在 NapCat WebUI 的“网络配置”里建：
 
 - **HTTP 服务端**：给本项目调用 API；`host=127.0.0.1`、`port=3000`、`messagePostFormat=array`，设置 `token`。
 - **HTTP 客户端**：把事件推给本项目；`url=http://127.0.0.1:8081/onebot`、`messagePostFormat=array`，设置 `token`（NapCat 用它做 HMAC-SHA1 签名）。
@@ -86,6 +86,24 @@ QQ_VOICE_MAX_CHARS=120
 ```
 
 `QQ_GPT_SOVITS_REF_AUDIO` 必须是 GPT-SoVITS 进程能读到的本机路径；如果 GPT-SoVITS 在 Docker 里，路径要映射到容器内同一位置。
+
+## 参考音色与训练数据
+
+推荐使用 [大肥鱼（自调少女音色）中文语音数据集](https://www.modelscope.cn/datasets/YinZilu/da-fei-yu-girl-voice-zh)：56 条中文语音、约 9 分 53 秒，带 `metadata.csv` 文本和 `style` 标签，已按 GPT-SoVITS 训练格式整理。当前参考片段选用 `dwg_0033.wav`（4.86 秒），对应文本：
+
+```text
+你又订阅别的人工智能了？行吧，我就当没看见。
+```
+
+当前本地位置：
+
+```text
+data/runtime/gpt-sovits/dataset/train/audio/
+data/runtime/gpt-sovits/dataset/train/metadata.csv
+data/runtime/gpt-sovits/reference.wav
+```
+
+许可为 **CC BY-NC 4.0**，仅限非商业使用；转载或改编需署名 **尹紫鹭幻想社（Bilibili）**，并附数据集链接和许可链接。商业用途需另行取得授权。数据集为合成语音，不等同于 DeepSeek 官方音色。
 
 ## 启动与检查
 

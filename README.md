@@ -44,7 +44,7 @@ notepad .env
 NapCat 不在默认路径时：
 
 ```powershell
-.\scripts\start.ps1 -Target qq -NapCatHome 'D:\NapCat.Shell'
+.\scripts\start.ps1 -Target qq -NapCatHome 'tools\NapCat.Shell'
 ```
 
 ### 手动启动

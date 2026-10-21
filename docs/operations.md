@@ -80,7 +80,7 @@ uv run --extra native wechat-ai-bridge qq check
 脚本参数：
 
 ```powershell
-.\scripts\start.ps1 -Target qq -NapCatHome 'D:\NapCat.Shell'
+.\scripts\start.ps1 -Target qq -NapCatHome 'tools\NapCat.Shell'
 ```
 
 如果 NapCat 需要扫码，脚本会提示先登录，然后再启动网关。

@@ -84,7 +84,7 @@ uv run --extra native wechat-ai-bridge contacts --query 对方昵称
 
 ### NapCat OneBot 配置
 
-在 `D:\NapCat.Shell\config\onebot11_<QQ号>.json`（或 WebUI 网络配置）中设置：
+在 `tools/NapCat.Shell\config\onebot11_<QQ号>.json`（或 WebUI 网络配置）中设置：
 
 ```json
 {

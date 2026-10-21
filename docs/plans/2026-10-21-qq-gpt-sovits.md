@@ -62,7 +62,7 @@ uv run --extra native wechat-ai-bridge qq run
 - `qq check` 已对着假 OneBot API 实测通过（`qqReady=true`）；`qq run` 已实测启动并绑定 webhook，`/health` 返回 200，说明命令和进程骨架可运行。
 - QQ 文字已现场验证：测试群消息经 NapCat webhook 进入，模型生成回复后通过 OneBot 文字消息发送成功并获得 `message_id` 回执。天气查询也已现场返回 Open-Meteo 实时结果；看图用公网测试图经 webhook 验证；表情包 083 也已现场发送成功并获得 `message_id`。
 - 私聊也已完成实际发送验证：测试好友消息经 webhook 进入，回复走 `send_private_msg` 并取得回执。
-- 语音条尚未在真实 QQ 群验证。
+- 语音条已实际发送并现场确认：v2 整合包 zero-shot `/tts` 成功，私聊和测试群各发出一次 record，均取得 `message_id`，客户端显示为语音条。
 
 ## 待现场验收
 
