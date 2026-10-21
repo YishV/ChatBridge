@@ -30,11 +30,11 @@ class OneBotClient:
     def call(self, action: str, params: dict):
         if not isinstance(action, str) or not action or len(action) > 64:
             raise OneBotError('onebot_action_invalid')
-        body = json.dumps({'action': action, 'params': params}, ensure_ascii=False).encode('utf-8')
+        body = json.dumps(params, ensure_ascii=False).encode('utf-8')
         headers = {'Content-Type': 'application/json'}
         if self.settings.access_token:
             headers['Authorization'] = 'Bearer ' + self.settings.access_token
-        request = urllib.request.Request(self.base + '/', data=body, headers=headers, method='POST')
+        request = urllib.request.Request(self.base + '/' + action, data=body, headers=headers, method='POST')
         try:
             with self.opener.open(request, timeout=10) as response:
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
@@ -62,6 +62,19 @@ class OneBotClient:
         if not isinstance(result, dict):
             raise OneBotError('onebot_response_invalid')
         return result
+
+    def group_list(self) -> list[dict]:
+        data = self.call('get_group_list', {})
+        result = data.get('data')
+        if not isinstance(result, list):
+            raise OneBotError('onebot_response_invalid')
+        groups = []
+        for item in result:
+            if not isinstance(item, dict) or item.get('group_id') is None:
+                continue
+            groups.append({'group_id': str(item['group_id']),
+                           'group_name': item.get('group_name') if isinstance(item.get('group_name'), str) else ''})
+        return groups
 
     def send_group_message(self, group_id: str, message: list[dict]) -> str:
         if not isinstance(group_id, str) or not group_id or len(group_id) > 64:

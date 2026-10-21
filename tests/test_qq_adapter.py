@@ -31,8 +31,12 @@ class OneBotServer:
                 length = int(self.headers.get('Content-Length', '0'))
                 body = json.loads(self.rfile.read(length))
                 owner.calls.append((self.headers.get('Authorization'), body))
-                data = ({'message_id': 42, 'user_id': 10001, 'nickname': 'bot'}
-                        if body.get('action') in ('send_group_msg', 'get_login_info') else None)
+                action = self.path.rstrip('/').rsplit('/', 1)[-1]
+                data = None
+                if action in ('send_group_msg', 'get_login_info'):
+                    data = {'message_id': 42, 'user_id': 10001, 'nickname': 'bot'}
+                elif action == 'get_group_list':
+                    data = [{'group_id': 123, 'group_name': '测试群'}]
                 payload = {'status': 'ok', 'retcode': 0, 'data': data}
                 raw = json.dumps(payload).encode()
                 self.send_response(200)
@@ -135,7 +139,7 @@ class QQWebhookTests(unittest.TestCase):
         try:
             port = server.start()
             body = json.dumps({'post_type': 'message', 'x': 1}).encode()
-            signature = hmac.new(b's3cret', body, hashlib.sha256).hexdigest()
+            signature = hmac.new(b's3cret', body, hashlib.sha1).hexdigest()
             request = urllib.request.Request(
                 f'http://127.0.0.1:{port}/onebot', data=body,
                 headers={'Content-Type': 'application/json', 'X-Signature': signature},
@@ -172,9 +176,8 @@ class OneBotClientTests(unittest.TestCase):
             self.assertEqual(client.send_group_record('123', wav), '42')
             self.assertEqual(server.calls[0][0], 'Bearer token')
             text_call = server.calls[0][1]
-            self.assertEqual(text_call['action'], 'send_group_msg')
-            self.assertEqual(text_call['params']['message'][0]['type'], 'text')
-            record = server.calls[1][1]['params']['message'][0]
+            self.assertEqual(text_call['message'][0]['type'], 'text')
+            record = server.calls[1][1]['message'][0]
             self.assertEqual(record['type'], 'record')
             self.assertTrue(record['data']['file'].startswith('file://'))
 
@@ -186,6 +189,11 @@ class OneBotClientTests(unittest.TestCase):
             client = FailClient(QQSettings())
             with self.assertRaises(OneBotError):
                 client.send_group_text('123', 'hello')
+
+    def test_group_list_is_bounded(self):
+        with OneBotServer() as server:
+            client = OneBotClient(QQSettings(api_url=server.url))
+            self.assertEqual(client.group_list(), [{'group_id': '123', 'group_name': '测试群'}])
 
 
 class FakeSpeech:

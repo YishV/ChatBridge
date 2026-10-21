@@ -141,11 +141,12 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 
 ```powershell
 # 先按 docs/qq-gpt-sovits.md 配好 NapCat、QQ_ALLOWED_GROUPS 和 GPT-SoVITS
+uv run --extra native wechat-ai-bridge qq groups   # 只读群号/群名
 uv run --extra native wechat-ai-bridge qq check
 uv run --extra native wechat-ai-bridge qq run
 ```
 
-`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
+`qq groups` 只读取群列表，用来获取 `QQ_ALLOWED_GROUPS`；`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
 
 ## 自然参与与数据边界
 

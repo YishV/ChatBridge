@@ -1,6 +1,7 @@
 """QQ gateway loop: webhook events in, shared delivery service out."""
 
 import queue
+import sys
 import time
 
 from wechat_ai_bridge.qq.config import QQSettings
@@ -9,10 +10,11 @@ from wechat_ai_bridge.qq.webhook import QQWebhookServer
 
 
 class QQGateway:
-    def __init__(self, settings: QQSettings, client, service, *, self_id=None):
+    def __init__(self, settings: QQSettings, client, service, *, self_id=None, vision=None):
         self.settings = settings
         self.client = client
         self.service = service
+        self.vision = vision
         self.self_id = str(self_id) if self_id is not None else None
         self.events = queue.Queue(maxsize=1000)
         self.webhook = QQWebhookServer(settings, self._enqueue)
@@ -36,6 +38,8 @@ class QQGateway:
                 break
             if self.self_id is None and event.get('self_id') is not None:
                 self.self_id = str(event['self_id'])
+            if self.vision is not None:
+                self.vision.observe_event(event, self.self_id)
             try:
                 message = map_event(event, self.self_id)
             except QQEventError:
@@ -54,7 +58,12 @@ class QQGateway:
             outcome = getattr(processed, 'outcome', None) or getattr(result, 'outcome', None)
             received += 1 if not message.is_from_bot else 0
             natural += 1 if str(outcome) == 'deferred' else 0
-        natural += len(self.service.flush_pending())
+        try:
+            pending = self.service.flush_pending()
+        except Exception:
+            self.errors += 1
+            pending = []
+        natural += len(pending)
         self.received += received
         self.natural_evaluated += natural
         return {'received': received, 'naturalEvaluated': natural}
@@ -68,7 +77,11 @@ class QQGateway:
         self.webhook.start()
         try:
             while True:
-                self.tick()
+                try:
+                    self.tick()
+                except Exception as error:
+                    self.errors += 1
+                    print('[qq] tick error: ' + type(error).__name__, file=sys.stderr, flush=True)
                 time.sleep(0.5)
         finally:
             self.webhook.stop()

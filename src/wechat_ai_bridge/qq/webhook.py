@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -50,15 +51,10 @@ class QQWebhookServer:
                 if urlparse(self.path).path != owner.settings.webhook_path:
                     self._reply(404)
                     return
-                try:
-                    length = int(self.headers.get('Content-Length', '0'))
-                except ValueError:
+                body = self._read_body()
+                if body is None:
                     self._reply(400)
                     return
-                if length < 2 or length > _MAX_BODY:
-                    self._reply(413 if length > _MAX_BODY else 400)
-                    return
-                body = self.rfile.read(length)
                 if owner.settings.webhook_secret and not self._authorized(body):
                     self._reply(401)
                     return
@@ -68,6 +64,9 @@ class QQWebhookServer:
                 try:
                     event = json.loads(body)
                 except (ValueError, UnicodeError, RecursionError):
+                    print('[qq-webhook] invalid json content-type=%r length=%d transfer=%r' % (
+                        self.headers.get('Content-Type'), len(body),
+                        self.headers.get('Transfer-Encoding')), file=sys.stderr, flush=True)
                     self._reply(400)
                     return
                 if not isinstance(event, dict):
@@ -80,12 +79,56 @@ class QQWebhookServer:
                     return
                 self._reply(204)
 
+            def _read_body(self):
+                transfer = (self.headers.get('Transfer-Encoding') or '').lower()
+                if 'chunked' in transfer:
+                    chunks = []
+                    total = 0
+                    try:
+                        while True:
+                            line = self.rfile.readline(1024).strip()
+                            if not line:
+                                break
+                            size = int(line.split(b';', 1)[0], 16)
+                            if size == 0:
+                                while True:
+                                    trailer = self.rfile.readline(1024)
+                                    if trailer in (b'\r\n', b'\n', b''):
+                                        break
+                                break
+                            total += size
+                            if total > _MAX_BODY:
+                                return None
+                            chunks.append(self.rfile.read(size))
+                            self.rfile.read(2)
+                    except (ValueError, OSError):
+                        return None
+                    body = b''.join(chunks)
+                else:
+                    try:
+                        length = int(self.headers.get('Content-Length', '0'))
+                    except ValueError:
+                        return None
+                    if length < 2 or length > _MAX_BODY:
+                        return None
+                    body = self.rfile.read(length)
+                return body if len(body) >= 2 else None
+
             def _authorized(self, body: bytes) -> bool:
                 header = (self.headers.get('X-Signature') or self.headers.get('X-NapCat-Signature') or '').strip()
+                algorithms = (hashlib.sha1,)
                 if header.startswith('sha256='):
                     header = header[7:]
-                expected = hmac.new(owner.settings.webhook_secret.encode('utf-8'), body, hashlib.sha256).hexdigest()
-                return bool(header) and hmac.compare_digest(header.lower(), expected.lower())
+                    algorithms = (hashlib.sha256,)
+                elif header.startswith('sha1='):
+                    header = header[5:]
+                if not header:
+                    return False
+                for algorithm in algorithms:
+                    expected = hmac.new(owner.settings.webhook_secret.encode('utf-8'), body, algorithm).hexdigest()
+                    if hmac.compare_digest(header.lower(), expected.lower()):
+                        return True
+                return False
 
         return Handler
 

@@ -37,6 +37,8 @@ class QQSettings:
     gpt_text_lang: str = 'zh'
     gpt_timeout_seconds: float = 30.0
     voice_max_chars: int = 120
+    vision_enabled: bool = True
+    vision_window_seconds: int = 120
 
     def __post_init__(self):
         parsed = urlparse(self.api_url)
@@ -53,7 +55,10 @@ class QQSettings:
                 or type(self.spontaneous_cooldown_seconds) is not int
                 or not 5 <= self.spontaneous_cooldown_seconds <= 3600
                 or type(self.voice_enabled) is not bool
-                or type(self.voice_max_chars) is not int or not 1 <= self.voice_max_chars <= 500):
+                or type(self.voice_max_chars) is not int or not 1 <= self.voice_max_chars <= 500
+                or type(self.vision_enabled) is not bool
+                or type(self.vision_window_seconds) is not int
+                or not 30 <= self.vision_window_seconds <= 300):
             raise ValueError('QQ 聊天配置无效')
         if not isinstance(self.gpt_prompt_text, str) or len(self.gpt_prompt_text) > 1000:
             raise ValueError('GPT-SoVITS prompt 配置无效')
@@ -71,6 +76,7 @@ class QQSettings:
             spontaneous = int(os.getenv('QQ_SPONTANEOUS_COOLDOWN_SECONDS', '5'))
             gpt_timeout = float(os.getenv('QQ_GPT_SOVITS_TIMEOUT_SECONDS', '30'))
             max_chars = int(os.getenv('QQ_VOICE_MAX_CHARS', '120'))
+            vision_window = int(os.getenv('QQ_VISION_WINDOW_SECONDS', '120'))
         except (TypeError, ValueError, OverflowError):
             raise ValueError('QQ 数值配置无效') from None
         return cls(
@@ -95,4 +101,6 @@ class QQSettings:
             gpt_text_lang=os.getenv('QQ_GPT_SOVITS_TEXT_LANG', 'zh').strip(),
             gpt_timeout_seconds=gpt_timeout,
             voice_max_chars=max_chars,
+            vision_enabled=_bool('QQ_VISION_ENABLED', 'true'),
+            vision_window_seconds=vision_window,
         )

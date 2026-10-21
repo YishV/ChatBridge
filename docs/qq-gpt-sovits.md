@@ -38,6 +38,26 @@ python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
 
 ## 配置
 
+NapCat 的 OneBot 配置在 `D:\NapCat.Shell\config\onebot11_<QQ号>.json`（以实际安装目录为准），也可以在 NapCat WebUI 的“网络配置”里建：
+
+- **HTTP 服务端**：给本项目调用 API；`host=127.0.0.1`、`port=3000`、`messagePostFormat=array`，设置 `token`。
+- **HTTP 客户端**：把事件推给本项目；`url=http://127.0.0.1:8081/onebot`、`messagePostFormat=array`，设置 `token`（NapCat 用它做 HMAC-SHA1 签名）。
+- 两个适配器都要勾选“保存时启用”。
+
+三个值分别这样来：
+
+- `QQ_ONEBOT_TOKEN`：NapCat HTTP 服务端的 token，不是 QQ 密码；任意随机串，本项目调用 API 时放在 `Authorization: Bearer`。
+- `QQ_WEBHOOK_SECRET`：NapCat HTTP 客户端的 token；NapCat 用 HMAC-SHA1 签名，本项目校验 `X-Signature: sha1=...`。两边必须一致。
+- `QQ_ALLOWED_GROUPS`：QQ 群号，不是群名。NapCat 重启并登录后执行：
+  ```powershell
+  uv run --extra native wechat-ai-bridge qq groups
+  ```
+  输出里的 `group_id` 就是群号；填一个测试群，多个用逗号分隔。
+
+本项目也会把 `QQ_*` 配置写入本机 `.env`。如果使用 `qq groups` 前还没填 `QQ_ALLOWED_GROUPS`，`qq groups` 仍可运行（它只读群列表，不发送消息）。
+
+## 配置示例
+
 把 `.env.example` 的 QQ 段复制到本机 `.env`：
 
 ```dotenv
@@ -68,25 +88,27 @@ QQ_VOICE_MAX_CHARS=120
 ## 启动与检查
 
 ```powershell
+uv run --extra native wechat-ai-bridge qq groups
 uv run --extra native wechat-ai-bridge qq check
 uv run --extra native wechat-ai-bridge qq run
 ```
 
-`qq check` 只检查 OneBot 登录、webhook 端口、群数量和参考音频是否存在，不发送消息，也不调用 `/tts`。`qq run` 启动 webhook 和 QQ 网关；微信网关仍用原来的 `run` 命令，两个进程互不影响。
+`qq groups` 只读取并打印群号和群名，不发送消息；`qq check` 只检查 OneBot 登录、webhook 端口、群数量和参考音频是否存在，不发送消息，也不调用 `/tts`。`qq run` 启动 webhook 和 QQ 网关；微信网关仍用原来的 `run` 命令，两个进程互不影响。
 
 ## 行为与边界
 
 - 模型通过 `decide_reply` 的 `voice` 字段决定文字或语音；短句、口语、情绪化回复更适合语音，长说明和事实用文字。
 - QQ 语音链路：`GPT-SoVITS /tts → WAV → OneBot record → NapCat SILK → 群语音条`。
+- QQ 看图：成员在群里发图后，在 `QQ_VISION_WINDOW_SECONDS`（默认 120 秒）内 @ 机器人并问图片内容，机器人会读取**该成员最近一张图**；普通图片不会主动上传，其他成员的图不会复用。图片只保存在内存。
 - GPT-SoVITS 失败、超时或返回无效 WAV 时回退文字；`record` API 状态不明时不补发文字，避免重复。
-- QQ v1 不发送表情包、不做看图、不做真 @ 提醒；这些能力仍只在微信侧或后续版本。
+- QQ v1 不发送表情包、不做真 @ 提醒；这些能力仍只在微信侧或后续版本。
 - NapCat 是个人号协议，存在账号风险；只使用测试小号，不要把 webhook/API 暴露到公网。
-- 目前没有在真实 NapCat + QQ 群上完成端到端验收；离线测试覆盖事件映射、webhook 签名、OneBot 收发、GPT-SoVITS 请求与语音决策。真实语音条需要一次群内测试。
+- 目前 QQ 文字已在测试群完成真实收发和回执确认；QQ 看图已用公网测试图经 webhook 验证，真实 QQ 图片仍需用户发一张确认；QQ 语音条仍需 GPT-SoVITS 服务、参考音频和一次群内现场验收。离线测试覆盖事件映射、webhook 签名、OneBot 收发、GPT-SoVITS 请求与语音决策，不能替代语音条现场验收。
 
 ## 常见问题
 
 - `qq check` 报 `onebot_unavailable`：NapCat HTTP API 没启动、端口或 token 不对。
-- webhook 401：`QQ_WEBHOOK_SECRET` 与 NapCat webhook 密钥不一致。
+- webhook 401：`QQ_WEBHOOK_SECRET` 与 NapCat **HTTP 客户端**的 token 不一致；NapCat 使用 HMAC-SHA1，本项目按 `X-Signature: sha1=...` 校验。
 - webhook 403：未设置 secret 时只接受本机请求；跨机器请设置 secret。
 - 语音没有声音：确认 GPT-SoVITS 返回 WAV、NapCat 的 ffmpeg/silk 可用，并检查参考音频和 prompt 文本。
 - 语音发送状态未知：不要自动重试；先检查 QQ 群实际消息。

@@ -16,6 +16,7 @@ from wechat_ai_bridge.media.memes import MemeCatalog, MemeError
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.qq import QQGateway, QQSettings, OneBotClient, OneBotError, QQSender
+from wechat_ai_bridge.qq.vision import QQVisionInbox
 from wechat_ai_bridge.qq.webhook import QQWebhookServer
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
@@ -126,9 +127,17 @@ def run_qq(args, settings, emit):
         qq = QQSettings.from_env()
     except ValueError:
         raise GatewayError('qq_config_invalid') from None
+    client = OneBotClient(qq)
+    if args.action == 'groups':
+        try:
+            groups = client.group_list()
+        except OneBotError as error:
+            emit({'status': 'qq_unavailable', 'error': error.code, 'sent': False})
+            raise SystemExit(1) from None
+        emit({'groups': groups, 'sent': False})
+        return
     if not qq.allowed_groups:
         raise GatewayError('qq_groups_missing')
-    client = OneBotClient(qq)
     if args.action == 'check':
         try:
             info = client.login_info()
@@ -153,6 +162,8 @@ def run_qq(args, settings, emit):
             'configuredGroups': len(qq.allowed_groups),
             'voiceEnabled': qq.voice_enabled,
             'gptReferenceReady': reference_ok,
+            'visionEnabled': qq.vision_enabled,
+            'visionWindowSeconds': qq.vision_window_seconds,
             'sent': False,
         })
         return
@@ -168,7 +179,11 @@ def run_qq(args, settings, emit):
             voice_enabled=qq.voice_enabled,
             voice_max_chars=qq.voice_max_chars)
         processor = create_processor(runtime, store, history_groups=qq.allowed_groups,
-                                     meme_catalog=None, voice_enabled=qq.voice_enabled)
+                                     meme_catalog=None, vision=(
+                                         QQVisionInbox(qq.allowed_groups, store,
+                                                       window_seconds=qq.vision_window_seconds)
+                                         if qq.vision_enabled else None),
+                                     voice_enabled=qq.voice_enabled)
         try:
             sender = QQSender(qq, client=client)
         except ValueError:
@@ -177,7 +192,8 @@ def run_qq(args, settings, emit):
         service = DeliveryService(processor, store, sender, console=console,
             meme_catalog=None, voice_sender=sender if qq.voice_enabled else None,
             voice_policy='model')
-        gateway = QQGateway(qq, client, service)
+        gateway = QQGateway(qq, client, service,
+                            vision=processor.chat.vision if qq.vision_enabled else None)
         with SingleInstance(Path('data/runtime/qq.gateway.lock')):
             emit({'status': 'qq_started', 'groups': len(qq.allowed_groups),
                   'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
@@ -281,7 +297,7 @@ def main() -> None:
     voice.add_argument('--group', help='say 时的群 ID；必须是已配置群')
     voice.add_argument('--text', help='say 时要朗读的文字')
     qq = commands.add_parser('qq', help='NapCat/OneBot 11 QQ 网关')
-    qq.add_argument('action', choices=('check', 'run'))
+    qq.add_argument('action', choices=('check', 'run', 'groups'))
     qq.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
     run = commands.add_parser("run", help="持续处理已配置白名单群的新消息")
