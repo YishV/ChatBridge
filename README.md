@@ -1,221 +1,124 @@
 # wechat-ai-bridge
 
-通用群聊 AI 聊天助手。微信侧被原生 `@` 时回答，其他消息结合最近群聊择机接话；另提供实验性的 QQ/NapCat 独立进程和本机 GPT-SoVITS 语音条。模型使用 DeepSeek，无需预先准备资料。
+本机微信 + QQ 群聊/私聊 AI 桥接。微信走已核验的 native hook，QQ 走 NapCat/OneBot 11；模型使用 DeepSeek，语音可选接本机 GPT-SoVITS。
 
-本机持续网关与 DeepSeek 文字聊天已接通：原生 `@` 回复和未 `@` 的自然接话均已由用户收取并核对服务器回执，后台已进入单群试运行。现场结果见 [文字聊天验收](docs/chat-acceptance.md)。`@`/拍一拍已支持免费 Edge TTS 语音条，自然接话仍保持文字；唱歌仍未接入。需求见 [requirements.md](requirements.md)，运行与验收见 [workflow.md](workflow.md)。
+## 能力
 
-## 环境与安装
+| 能力 | 微信 | QQ |
+| --- | --- | --- |
+| 群聊文字 | 支持 | 支持 |
+| 私聊文字 | 支持（wxid 白名单） | 支持（QQ 号白名单） |
+| 自然接话 | 支持 | 支持 |
+| 表情包 | 微信原生 sticker | image 消息段 |
+| 看图 | 同群同成员最近一张 | 同成员最近一张 |
+| 天气 | Open-Meteo | Open-Meteo |
+| 语音条 | Edge TTS + VB-Cable + UI | GPT-SoVITS + record |
+| 真 @ 提醒 | 未实现 | 未实现 |
 
-需要本机 Windows、已核验的固定版本微信与接入组件、Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
+微信和 QQ 是**两个独立进程**，各自登录、各自重连、各自 SQLite，互不阻塞。
+
+## 快速开始
+
+要求：Windows、Python 3.12、[uv](https://docs.astral.sh/uv/)、已核验的微信 native hook 或已登录的 NapCat。
 
 ```powershell
+cd D:\workspace\自用\wechat-ai-bridge
 uv sync --extra native
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
 ```
 
-在本机 `.env` 中填写 DeepSeek API 密钥和接入配置，按 `.env.example` 说明配置授权测试群。密钥仅在本机保存，不写入状态库、仓库、日志或回复。缺少密钥会阻止真实聊天启动。默认使用 DeepSeek `deepseek-flash`，文字聊天关闭思考模式；接口说明见 [DeepSeek Chat Completion 文档](https://api-docs.deepseek.com/api/create-chat-completion/)。
-
-可用 `uv run --extra native wechat-ai-bridge model-check` 独立检查模型连通性；该命令不向微信群发送消息，成功时仅输出 `modelReady: true` 状态。
-
-真实微信数据库、数据库凭据和聊天正文也不得提交或写入日志；运行终端仅做本机临时显示，不落盘。[本机接入记录](docs/wechatagent-integration.md) 记录基础收发阶段；网关私有配置格式见 [配置说明](docs/gateway-config.md)。
-
-## 本机模拟
+### 推荐：启动脚本
 
 ```powershell
-uv run --extra native wechat-ai-bridge admin allow test-group
-uv run --extra native wechat-ai-bridge ask --group test-group --sender tester --message-id msg-001 --text "今天过得怎么样？"
+# QQ：自动尝试拉起 NapCat，再启动 QQ 网关
+.\scripts\start.ps1 -Target qq
+
+# 微信：只启动微信网关
+.\scripts\start.ps1 -Target wechat
+
+# 两个平台各开一个窗口
+.\scripts\start.ps1 -Target all
 ```
 
-`ask` 仅在本机模拟一条群消息并输出结果，不向微信发送。添加 `--mentioned` 模拟原生 `@` 分支；未添加时采用自然参与策略，沉默是正常结果。更换消息 ID 才能模拟新消息。每次命令启动独立进程，不能跨命令保存短期群聊上下文。
-
-无需向 `data/knowledge/` 放入文件。该目录仅保留为未来可选资料扩展，见 [目录说明](data/knowledge/README.md)。
-
-## 真实微信文字网关
-
-先执行只读检查，核验账号、客户端/组件版本、监听归属及授权群配置：
+NapCat 不在默认路径时：
 
 ```powershell
+.\scripts\start.ps1 -Target qq -NapCatHome 'D:\NapCat.Shell'
+```
+
+### 手动启动
+
+```powershell
+# 微信：先启动微信/native hook
 uv run --extra native wechat-ai-bridge run --check
-```
-
-该命令不调用模型、不发送微信消息；检查结果不能证明真实聊天已通过。配置齐全后启动持续进程：
-
-```powershell
 uv run --extra native wechat-ai-bridge run
-```
 
-进程须持续运行才能处理消息。启动时记录当前群消息游标，只接启动后的新消息，不补答历史。`run --once` 仅执行一次轮询，不重复处理历史，不能替代持续运行。
-
-在后台重定向输出时使用 `run --quiet-console`，只保留状态计数，避免把终端里的群聊正文保存到文件。前台默认仍可实时查看收到的消息和发送结果。
-
-运行中会在终端逐条打印收发日志，便于本机观察：`[收到]` 记录群、发送者、方式（原生 `@`/拍一拍/普通）和正文；`[发送成功]`/`[发送未确认]` 记录回复正文、耗时与服务器消息 ID；未产生或未提交回复时打印 `[未回复]`/`[未发送]` 及原因。日志只写标准错误（stdout 仍只输出状态 JSON），不写入任何文件，不要把终端输出重定向保存或提交。
-
-管理命令仅在本机终端使用：
-
-```powershell
-uv run --extra native wechat-ai-bridge admin allow test-group
-uv run --extra native wechat-ai-bridge admin deny test-group
-uv run --extra native wechat-ai-bridge admin pause
-uv run --extra native wechat-ai-bridge admin resume
-uv run --extra native wechat-ai-bridge admin status
-```
-
-白名单和暂停动态生效。群聊不能修改白名单、模型配置或系统提示词。
-
-### 场景表情包
-
-DeepSeek 鲸鱼娘支持在文字回复后附带一张静态场景表情图，由同一次模型请求结合最近群聊、人设和情绪选择；没有合适素材时只回文字。首次使用先同步公开素材索引（只同步元数据，不下载图片）：
-
-```powershell
-uv run --extra native wechat-ai-bridge memes sync
-uv run --extra native wechat-ai-bridge memes list
-uv run --extra native wechat-ai-bridge memes check
-```
-
-素材索引保存在 `WECHAT_AI_BRIDGE_MEME_CACHE_DIR`（默认 `data/runtime/memes`）。站点拒绝访问时改从公开仓库 README 的精选 19 张同步，不绕过站点限制；运行到需要发图时再按需下载并转成单帧 GIF，缓存在本机组件限定的 `state/stickers/outgoing`（Git 忽略）。下载或转换失败只保留已发送的文字，不补发、不重试。缓存前会把长边缩放到 500 像素：微信会把宽度超过 1000 像素的 GIF 当文件卡片发送，不能靠原生接口接受来保证显示成表情。
-
-`memes check` 只读本地配置和索引，不连接微信组件；组件是否支持表情发送看 `run --check` 的 `memeNativeReady`。
-
-- 每条回复最多一张；只有文字发送并匹配服务器回执后才尝试配图，图片发送状态未知时不重复发送。
-- 每群默认 60 秒图片冷却，最近 5 张不重复；暂停或撤销群授权时配置也会停止。
-- 只支持静态素材；动图、微信原生收藏表情仍未接入，语音条见下节。本机组件未报告 `nativeStickerSend` 时不向模型提供配图选项。
-- 素材描述来自公开图库，作为数据提供给模型，不能改变系统规则；群聊正文不会发送给图库站点。
-
-可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
-
-### 明确 @ 看图
-
-沿用现有 DeepSeek `deepseek-flash` 和密钥，无需另配视觉服务。更新后先安装依赖，再自行启动网关：
-
-```powershell
-uv sync --extra native
-uv run --extra native wechat-ai-bridge run
-```
-
-在授权群里先发一张图片，然后由**发图的同一账号**在 **120 秒内**从成员列表真正 `@` 机器人。只 @ 不说其他话，会直接看自己的最近图片；问“这是什么品种”“好看吗”等相关问题，也不需要特意说“看图”。带其他文本时先用不含图片的模型请求判断是否相关，无关的天气、计算或闲聊继续普通回答，不读取图片。该判断和后续回答分别计入现有模型配额。只读取同群、同一发图者的最近一张；别人单纯 @、手打 `@昵称`、普通发图、询问“你会看图吗”及明确拒绝看图不上传图片。启动前图片、其他群或其他成员的图不会补读。
-
-支持普通图片和图片文件附件（JPEG、PNG、WebP、GIF）；GIF 只识别第一帧，不理解完整动画。微信原生收藏表情暂不支持。若微信尚未缓存原图，或格式无法解码，会明确提示；可在电脑微信打开原图、等待下载后重新发图并 @。
-
-普通发图只在内存登记短时消息引用。同一发图者纯 @ 或提出图片相关问题后才核验对应消息并读取本机精确缓存，在内存缩放、去除元信息后发送单张 JPEG 给 DeepSeek；不访问图片里的网址。图片、文件路径和解密信息不写入聊天存档，也不带入后续轮次；只按既有规则保存问题和确认发送的文字回复。图片内容不能改变人设、权限或程序规则。
-
-`.env` 的 `WECHAT_AI_BRIDGE_VISION_ENABLED=true` 控制开关，`WECHAT_AI_BRIDGE_VISION_WINDOW_SECONDS=120` 控制有效期（30～300 秒），修改后重启生效。`run --check` 报告开关和有效期，不读取图片、不调用模型；`ask` 本机模拟不连接微信图片缓存。看图沿用模型配额、有限重试、暂停和群授权规则；读取失败不会猜图。接口格式见 [DeepSeek 视觉文档](https://api-docs.deepseek.com/zh-cn/guides/vision/)。
-
-### 天气查询
-
-默认接入 [Open-Meteo](https://open-meteo.com/)，个人非商用无需 API 密钥。可在授权群里问“杭州明天要带伞吗”“北京未来七天天气”“上海现在多少度”。原生 `@` 即时处理；不 `@` 时沿用自然参与和消息合并规则，闲聊天气不等于自动播报。
-
-没给城市时先追问；同名地点需补充省份或国家，例如“朝阳,辽宁省”。只参考同群同成员的有限历史理解地点，不从昵称推断，也不把别人的所在地当作你的。城市追问短时保留约 5 分钟；普通跟进可参考同一成员历史，重启恢复遵循现有聊天记录规则。
-
-当前支持当前天气和未来 7 天日预报，不包含历史天气、小时预报、气象预警和空气质量。当前数据来自天气模型格点，不宣称为气象站观测。回复附地点、数据/预报日期、查询时间和来源链接；时间意图按北京时间理解，天气数据标明查询地点时区。缺失值为未知，接口故障会说明暂时查不到，不用模型知识补造预报。
-
-本机可独立验证接口，不调用 DeepSeek、不读取群记录或发送微信消息：
-
-```powershell
-uv run --extra native wechat-ai-bridge weather --city "杭州,浙江省"
-```
-
-`.env` 的 `WECHAT_AI_BRIDGE_WEATHER_ENABLED=true` 为开关，`WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS=5` 为每次天气网络请求的超时，`WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS=600` 为缓存秒数，修改后重启生效。未命中缓存时需要地理检索和预报两个网络请求；最多缓存 128 个成功地点，过期或跨当地午夜后重新获取，失败不返回过期数据。
-
-天气问题通常需要两次模型请求：先抽取城市/日期，再按人设组织回复；每次物理调用均计群配额，普通聊天仍一次，暂时错误最多整体重试一次，各阶段复检暂停与白名单。天气服务请求只包含受限城市字段、坐标和预报参数，不附群记录、身份或模型密钥。城市字段有字符、长度及常见句式/敏感字段校验；这属于保守检查，不能替代完善的地名识别。
-
-免费接口仅供非商用并需保留数据署名，见 [服务条款](https://open-meteo.com/en/terms)。接口实测和离线测试不替代群内验收；开发过程不自动启动机器人。
-
-### 语音条（实验功能，默认关闭）
-
-当前暂时关闭自动语音条，`.env` 保持 `WECHAT_AI_BRIDGE_VOICE_ENABLED=false`，重启后原生 `@` 和拍一拍也使用文字回复。
-
-只有显式启用语音开关并重启后，被原生 `@` 或拍一拍时，回复才会先由免费的 Edge TTS 合成为中文女声，经 VB-Cable 虚拟声卡送入微信，再点微信发送按钮左侧的语音图标录音并发送；自然接话仍保持文字。
-
-```powershell
-uv sync --extra native --extra voice
-uv run --extra native --extra voice wechat-ai-bridge voice check
-```
-
-`voice check` 只检查 Edge TTS、CABLE Input/Output、微信窗口和群名解析，不发送消息；`voice say --group 群ID --text "..."` 才会显式发送一条测试语音。语音发送需要微信窗口前台可见，会短暂占用鼠标和默认麦克风；Edge TTS 需要联网，回复文字会发送到 Microsoft 语音服务。语音准备失败时回退文字；已经开始录音但回执不明时不补发，避免重复。真实群内语音条仍需一次 @ 现场确认。
-
-配置：`WECHAT_AI_BRIDGE_VOICE_ENABLED`、`WECHAT_AI_BRIDGE_VOICE_NAME`（默认 `zh-CN-XiaoxiaoNeural`）、`WECHAT_AI_BRIDGE_VOICE_MAX_CHARS`（默认 120）。`run --check` 会报告 `voiceEnabled` 和 `voiceReady`。完整记录见 [语音条实施记录](docs/plans/2026-10-20-voice-messages.md)。
-
-### 私聊（微信与 QQ）
-
-- 微信：先执行 `uv run --extra native wechat-ai-bridge contacts --query 对方昵称` 查 wxid，在 `data/runtime/native-hook/gateway.json` 增加 `"allowedPrivateIds": ["对方wxid"]`；私聊按一对一处理，目前只发文字（微信私聊语音和看图未启用）。
-- QQ：在 `.env` 填 `QQ_ALLOWED_PRIVATE_USERS=好友QQ号`；可先执行 `qq friends` 查看好友列表。QQ 私聊支持文字和语音条，发送走 `send_private_msg`。
-- 两边都只响应显式白名单里的私聊对象，避免陌生人私聊消耗模型配额。
-
-### QQ（NapCat + GPT-SoVITS，实验）
-
-同一仓库新增了 QQ 进程，和微信进程相互独立：QQ 走 NapCat 的 OneBot 11 HTTP API 发消息、HTTP POST webhook 收事件；语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再交给 NapCat 转成 SILK 语音条。QQ 还复用微信侧的单帧 GIF 表情库（`image` 消息段），支持图片上下文和私聊白名单。模型可以在 `decide_reply` 里选择 `voice=true`，失败时回退文字。
-
-```powershell
-# 先按 docs/qq-gpt-sovits.md 配好 NapCat、QQ_ALLOWED_GROUPS 和 GPT-SoVITS
-uv run --extra native wechat-ai-bridge qq groups   # 只读群号/群名
-uv run --extra native wechat-ai-bridge qq friends  # 只读好友，用于私聊白名单
+# QQ：先启动 NapCat 并登录
+uv run --extra native wechat-ai-bridge qq groups
+uv run --extra native wechat-ai-bridge qq friends
 uv run --extra native wechat-ai-bridge qq check
 uv run --extra native wechat-ai-bridge qq run
 ```
 
-`qq groups`/`qq friends` 只读取列表，用来获取 `QQ_ALLOWED_GROUPS`/`QQ_ALLOWED_PRIVATE_USERS`；`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群/私聊配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
+`qq run` 运行期间不要再跑 `qq check`，因为检查会占用 8081 端口。
 
-## 自然参与与数据边界
+## 文档
 
-### 人设提示词
+- [运行手册](docs/operations.md)：启动/停止、验收、故障处理
+- [配置说明](docs/configuration.md)：`.env`、微信 gateway、NapCat、GPT-SoVITS
+- [架构](docs/architecture.md)：进程、分层、数据流
+- [完成度与后续建议](docs/roadmap.md)
+- [QQ 接入说明](docs/qq-gpt-sovits.md)
+- [文字聊天验收](docs/chat-acceptance.md)
+- [需求](requirements.md) / [验收流程](workflow.md)
 
-直接编辑 [config/persona.md](config/persona.md)，可配置名字、性格、说话口吻和回复习惯。保存为 UTF-8 文本；下一次模型请求自动读取，不需要重启。文件最多 16 KiB，缺失、为空或编码错误时本次不调用模型，日志记固定配置错误代码。
+## 运行时
 
-`.env` 中 `WECHAT_AI_BRIDGE_PROMPT_FILE=config/persona.md` 可切换文件；改路径需要重启。若显式设置了 `WECHAT_AI_BRIDGE_SYSTEM_PROMPT`，该内联提示词优先，此时文件不生效。人设不能改变白名单、暂停、发送权限或程序实际具备的能力。
+```text
+wechat-ai-bridge run       微信网关
+wechat-ai-bridge qq run    QQ 网关
+```
 
-### 参与方式
+- 微信状态库：`data/runtime/chat-state.sqlite3`
+- QQ 状态库：`data/runtime/qq-chat-state.sqlite3`
+- 人设：`config/persona.md`
+- 微信群/私聊白名单：`data/runtime/native-hook/gateway.json`
+- QQ 群/私聊白名单：`.env` 的 `QQ_ALLOWED_GROUPS` / `QQ_ALLOWED_PRIVATE_USERS`
 
-- 只处理白名单群的新文本、明确请求查看的短时图片，以及群友拍当前机器人的原生拍一拍；忽略私聊、机器人自发消息和未通过接入校验的消息。
-- 原生 `@` 进入直接回答分支；手打 `@名字` 仍按普通消息处理。
-- 群友拍机器人时按人设文字回应；拍别人、自拍和手打“拍一拍”不触发此分支。不执行拍回动作，也不把拍一拍后缀当作提示词。
-- 普通消息结合最近群聊判断是否接话，默认克制，不逐句回应。模型决定沉默、返回空回复或坏格式时不发送。
-- 授权群的合格发言和确认发送的回复保存到本机 SQLite `chat_history` 表；启动按群恢复最近 50 条，上下文不再按 10 分钟过期。成员使用稳定群内代号与可读取的微信昵称，明确当前说话人和历史回复对象；同名不合并、改名不换身份。只向 DeepSeek 发送当前白名单群受限窗口和必要昵称，不发送个人备注或原始微信 ID。
-- 原生 `@` 和拍机器人共享直接回应分支，默认冷却 5 秒，也受群调用配额限制。普通消息先观察上下文，最后一条发言后约 5 秒合并判断；连续两句会一起考虑，不再因旧的 30 秒冷却直接丢弃。每群每小时最多调用模型 60 次。沉默消息也去重。
-- 只有匹配到实际发出记录的服务器消息 ID 后才记录助手回复上下文。发送失败或状态未知时不自动重发。
+控制台日志只写标准错误，用于本机观察，不写入文件。不要把包含聊天正文的输出重定向保存或提交。
 
-账号、核心版本或监听归属变化时停止网关，检查后再启动。群友应事先知道必要群聊上下文会发送至所选模型服务。
-
-后台计数区分 `deferred`（等待合并）、`naturalEvaluated`（合并批次处理）、`silent`（模型沉默）、`rateLimited`（配额/频率限制）和 `modelErrors`。自然参与决策使用结构化工具调用，空回复表示沉默，不记为 `model_response_empty`；真正的网络或格式错误最多重试一次。模型故障只记录如 `model_timeout`、`model_http_429`、`model_response_incomplete` 的安全代码，不记录请求、响应正文或密钥。
-
-模型单次请求默认超时 45 秒、最多输出 1200 token，可用 `.env` 的 `WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS`（1～120 秒）和 `WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS`（128～8192）调整，重启生效。空内容、坏响应 JSON、网络或服务暂时错误最多重试一次；两次都失败则结束本条，下一条仍可正常处理。重试也计入每群每小时配额，微信发送不自动重试。错误类型和尝试次数写入状态库最少审计，不保存模型正文；`modelRetries` 计数表示本批实际发生的额外请求。
-
-成员标识密钥自动保存在状态库旁的 `.members.key` 文件中，保持重启后的代号一致；密钥文件不保存聊天正文。不要删除或提交该文件；已有聊天存档而密钥缺失时，启动会提示 `member_identity_key_missing_for_history`，需恢复匹配的密钥。昵称查询失败时继续使用稳定代号。人设文件可照常修改，成员归属由程序独立维护。
-
-### 聊天记录与重启恢复
-
-默认数据库为 `data/runtime/chat-state.sqlite3`。使用 DB Browser for SQLite 打开后，在“浏览数据”选择 `chat_history`，可看到群、`role`（user/assistant）、成员代号、昵称、正文、互动类型及接收/确认时间。机器人回复行中的 `member_id` 是回复对象，`message_id` 对应触发消息。
-
-完整记录默认保留在本机，不自动删除。`.env` 的 `WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES=50` 控制每群送入模型的最近窗口（1～200 条，包含双方发言），调整后重启生效；每条模型输入仍最多 1000 字，助手回复最多 800 字。增加保存范围不等于每次把全部存档发给模型。
-
-启动恢复只读历史，不调用模型、不补答旧消息、不恢复待处理批次。模型沉默或失败时仍保存已接收发言，发送失败或状态未知时不写入助手发言。撤销群授权后不加载其历史，存档本身保留。旧版本未保存过的正文不能补回，新版启用后开始积累。`ask` 的合格模拟发言也会入库，但其本机输出不算微信确认发送的助手回复。
-
-聊天存档是本机明文业务数据，和密钥、微信数据库一样不提交 Git、不作为测试夹具；诊断日志仍不保存请求或响应正文。备份或迁移时同时保留 SQLite 和对应 `.members.key`。本功能尚不包含自动摘要、全历史检索或永久成员画像。
-
-## 测试与后续阶段
-
-已提供独立的[云端翻唱短样工具](docs/cloud-cover-sample.md)：先在本机裁剪片段并试听，再显式提交 Kits 分离与女声转换，生成本机混音。服务账号和歌曲尚待提供，真实云端试听未验收；当前不接群内点歌或微信音频发送。翻唱密钥使用独立 `.env.cover`，聊天仍沿用原 DeepSeek 配置。
+## 测试
 
 ```powershell
 uv run --extra native python -m unittest discover -s tests -v
 git diff --check
 ```
 
-离线测试使用虚构消息和模拟模型/网关，不能证明真实微信和 DeepSeek 已联通，见 [测试说明](tests/README.md)。
+离线测试使用虚构消息和假 HTTP 服务，不能证明真实微信、NapCat 或 GPT-SoVITS 已联通。
 
-后续依次推进：文字自由聊天验收 → 表情包现场验收 → 语音条群内验收 → 唱歌生成与音频发送。**音频文件和微信原生语音条是两项能力**；生成或发送音频文件不能据此宣称已支持原生语音条或唱歌。Kits 翻唱为独立付费候选，不参与当前语音条链路。
+## 注意
+
+- 只使用授权测试群和测试 QQ 小号；NapCat 是非官方协议，有账号风控风险。
+- `.env`、`gateway.json`、数据库密钥、NapCat token/secret 不提交 Git。
+- 微信语音条需要前台窗口和 VB-Cable；QQ 语音需要独立 Python 3.10 的 GPT-SoVITS 服务，不能装进本项目虚拟环境。
+- 当前 QQ 语音条仍需现场验收；GPT-SoVITS 未安装时 `QQ_VOICE_ENABLED=false`。
 
 ## 目录
 
 ```text
 src/wechat_ai_bridge/
-  wechat/       微信消息读取、原生元数据解析与发送适配
-  dispatch/     白名单、参与策略、去重、限流和暂停
-  qa/           通用聊天提示词、群上下文与回复整理
-  models/       DeepSeek 模型调用适配
-  media/        场景表情素材同步与云端翻唱短样工具
-  vision/       同群同成员的短时图片引用、精确缓存读取与内存解码
-  knowledge/    可选资料扩展边界
-  state/        白名单、暂停、消息去重与最少操作审计
-data/knowledge/  未来可选资料，不是聊天启动条件
-tests/           离线测试
+  wechat/       微信读取、native hook、发送与语音 UI
+  qq/           NapCat/OneBot、webhook、私聊、图片、语音发送
+  dispatch/     去重、冷却、配额与自然接话
+  qa/           聊天上下文、决策工具、人设
+  models/       DeepSeek 适配
+  media/        表情素材与 GIF 缓存
+  weather/      Open-Meteo
+  vision/       图片归一化与看图
+  speech/       GPT-SoVITS 本机客户端
+  state/        SQLite 状态与历史
+scripts/        启动脚本
+docs/           运行、配置、架构和路线图
+tests/          离线测试
 ```
