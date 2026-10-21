@@ -44,11 +44,11 @@ def map_event(event: dict, self_id: str | int | None) -> IncomingMessage | None:
     own = str(self_id if self_id is not None else event.get('self_id', ''))
     post_type = event.get('post_type')
     if post_type in ('message', 'message_sent'):
-        if event.get('message_type') != 'group':
+        message_type = event.get('message_type')
+        if message_type not in ('group', 'private'):
             return None
-        group_id = event.get('group_id')
         user_id = event.get('user_id')
-        if group_id is None or user_id is None:
+        if user_id is None:
             return None
         message_id = event.get('message_id')
         if message_id is None:
@@ -57,13 +57,24 @@ def map_event(event: dict, self_id: str | int | None) -> IncomingMessage | None:
         text = _segments_text(message)
         mentioned = _mentioned(message, own)
         text = text.strip()
-        if not text and not mentioned:
-            return None
+        if message_type == 'private':
+            if not text:
+                return None
+            conversation_id = 'private:' + str(user_id)
+            mentioned = True
+        else:
+            group_id = event.get('group_id')
+            if group_id is None:
+                return None
+            if not text and not mentioned:
+                return None
+            conversation_id = str(group_id)
         sender = event.get('sender') if isinstance(event.get('sender'), dict) else {}
         nickname = sender.get('card') or sender.get('nickname')
         return IncomingMessage(
-            message_id=str(message_id), group_id=str(group_id), sender_id=str(user_id),
+            message_id=str(message_id), group_id=conversation_id, sender_id=str(user_id),
             text=text or '（@了你）', mentioned_bot=mentioned,
+            is_group=message_type == 'group',
             is_from_bot=str(user_id) == own, sender_name=nickname if isinstance(nickname, str) else None,
         )
     if post_type == 'notice' and event.get('notice_type') in ('notify', 'poke'):

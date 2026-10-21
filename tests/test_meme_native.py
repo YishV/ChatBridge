@@ -55,7 +55,7 @@ class MemeNativeTests(unittest.TestCase):
 
     def test_native_client_uses_only_fixed_outgoing_gif_and_rechecks_policy(self):
         config = GatewayConfig(self.root/'data/runtime/client/Weixin.exe', 'fixture', self.root,
-            self.root/'credential', self.root/'token', 'bot', frozenset({self.group}), 'a'*64)
+            self.root/'credential', self.root/'token', 'bot', frozenset({self.group}), frozenset(), 'a'*64)
         client = NativeClient(config, 'fixture', can_send=lambda group:True)
         client.health = Mock(return_value={'nativeStickerSend': True})
         client._request = Mock(return_value={'ret':0})

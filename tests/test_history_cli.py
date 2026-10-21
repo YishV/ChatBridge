@@ -60,6 +60,8 @@ class HistoryCliTests(unittest.TestCase):
                 'sender_name': '测试', 'content': group, 'interaction': 'text'})
         config = Mock()
         config.groups = frozenset({'group-a'})
+        config.private_ids = frozenset()
+        config.conversations = config.groups
         config.reader_credentials.return_value = (Path(self.temp.name), 'fixture')
         native = Mock()
         native.health.return_value = {'ready': True, 'version': 'fixture'}

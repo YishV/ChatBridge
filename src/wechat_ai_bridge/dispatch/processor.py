@@ -35,7 +35,7 @@ class MessageProcessor:
         self._pending: dict[str, tuple[IncomingMessage, float]] = {}
 
     def process(self, message: IncomingMessage) -> ProcessResult:
-        if (not message.is_group or message.is_from_bot or not message.text.strip()
+        if (message.is_from_bot or not message.text.strip()
                 or not self.store.is_allowed(message.group_id) or self.store.is_paused()):
             return ProcessResult(Outcome.IGNORED)
         history = self.chat.history_entry(message)

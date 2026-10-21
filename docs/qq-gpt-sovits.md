@@ -53,6 +53,7 @@ NapCat 的 OneBot 配置在 `D:\NapCat.Shell\config\onebot11_<QQ号>.json`（以
   uv run --extra native wechat-ai-bridge qq groups
   ```
   输出里的 `group_id` 就是群号；填一个测试群，多个用逗号分隔。
+- `QQ_ALLOWED_PRIVATE_USERS`：允许私聊的 QQ 号。先执行 `qq friends` 查看好友列表，再把 QQ 号填进去；不填则不响应任何私聊。
 
 本项目也会把 `QQ_*` 配置写入本机 `.env`。如果使用 `qq groups` 前还没填 `QQ_ALLOWED_GROUPS`，`qq groups` 仍可运行（它只读群列表，不发送消息）。
 
@@ -68,6 +69,7 @@ QQ_WEBHOOK_PORT=8081
 QQ_WEBHOOK_PATH=/onebot
 QQ_WEBHOOK_SECRET=一段随机串
 QQ_ALLOWED_GROUPS=测试群号
+QQ_ALLOWED_PRIVATE_USERS=好友QQ号
 QQ_STATE_DB=data/runtime/qq-chat-state.sqlite3
 QQ_PARTICIPATION_MODE=natural
 QQ_COOLDOWN_SECONDS=5
@@ -89,19 +91,22 @@ QQ_VOICE_MAX_CHARS=120
 
 ```powershell
 uv run --extra native wechat-ai-bridge qq groups
+uv run --extra native wechat-ai-bridge qq friends
 uv run --extra native wechat-ai-bridge qq check
 uv run --extra native wechat-ai-bridge qq run
 ```
 
-`qq groups` 只读取并打印群号和群名，不发送消息；`qq check` 只检查 OneBot 登录、webhook 端口、群数量和参考音频是否存在，不发送消息，也不调用 `/tts`。`qq run` 启动 webhook 和 QQ 网关；微信网关仍用原来的 `run` 命令，两个进程互不影响。
+`qq groups`/`qq friends` 只读取并打印群或好友列表，不发送消息；`qq check` 只检查 OneBot 登录、webhook 端口、群/私聊配置和参考音频是否存在，不发送消息，也不调用 `/tts`。`qq run` 启动 webhook 和 QQ 网关；微信网关仍用原来的 `run` 命令，两个进程互不影响。
 
 ## 行为与边界
 
 - 模型通过 `decide_reply` 的 `voice` 字段决定文字或语音；短句、口语、情绪化回复更适合语音，长说明和事实用文字。
-- QQ 语音链路：`GPT-SoVITS /tts → WAV → OneBot record → NapCat SILK → 群语音条`。
+- 表情包：QQ 复用微信侧的单帧 GIF 素材库，文字发送确认后最多再发一张，`image` 消息段交给 NapCat；每群/私聊沿用 60 秒冷却和最近 5 张避重。QQ 不依赖微信的 `SendStickerMsg`。
+- 私聊：`QQ_ALLOWED_PRIVATE_USERS` 中的好友可以一对一聊天；私聊消息直接回答，发送走 OneBot `send_private_msg`，语音走 `send_private_msg` 的 `record` 段。未列出的好友不响应。
+- QQ 语音链路：`GPT-SoVITS /tts → WAV → OneBot record → NapCat SILK → 群/私聊语音条`。
 - QQ 看图：成员在群里发图后，在 `QQ_VISION_WINDOW_SECONDS`（默认 120 秒）内 @ 机器人并问图片内容，机器人会读取**该成员最近一张图**；普通图片不会主动上传，其他成员的图不会复用。图片只保存在内存。
 - GPT-SoVITS 失败、超时或返回无效 WAV 时回退文字；`record` API 状态不明时不补发文字，避免重复。
-- QQ v1 不发送表情包、不做真 @ 提醒；这些能力仍只在微信侧或后续版本。
+- QQ v1 支持文字、私聊、看图、表情包和 GPT-SoVITS 语音条；不支持真 @ 提醒。
 - NapCat 是个人号协议，存在账号风险；只使用测试小号，不要把 webhook/API 暴露到公网。
 - 目前 QQ 文字已在测试群完成真实收发和回执确认；QQ 看图已用公网测试图经 webhook 验证，真实 QQ 图片仍需用户发一张确认；QQ 语音条仍需 GPT-SoVITS 服务、参考音频和一次群内现场验收。离线测试覆盖事件映射、webhook 签名、OneBot 收发、GPT-SoVITS 请求与语音决策，不能替代语音条现场验收。
 

@@ -39,9 +39,10 @@ QQ 群消息/拍一拍
 ```
 
 - 文字和语音都走 `DeliveryService`；语音使用 `voice_policy=model`，不再按“是否 @”强制语音。
-- 只有 `QQ_ALLOWED_GROUPS` 中的群会被处理；QQ 状态库独立。
-- QQ v1 不支持表情包、看图、真 @ 提醒。
-- webhook 未设置 secret 时只接受本机请求；设置 secret 后校验 `X-Signature` HMAC-SHA256。
+- 只有 `QQ_ALLOWED_GROUPS` 中的群和 `QQ_ALLOWED_PRIVATE_USERS` 中的好友会被处理；群和私聊共用 QQ 状态库但使用不同会话 ID（私聊为 `private:<QQ号>`）。
+- 私聊直接回应，发送走 `send_private_msg`；QQ 私聊语音也复用同一 record 逻辑。
+- QQ v1 支持文字、私聊、看图、表情包和 GPT-SoVITS 语音条；不支持真 @ 提醒。
+- webhook 未设置 secret 时只接受本机请求；设置 secret 后校验 `X-Signature` HMAC-SHA1。
 
 ## 配置与命令
 
@@ -57,9 +58,10 @@ uv run --extra native wechat-ai-bridge qq run
 - 新增 GPT-SoVITS 客户端测试：请求体、WAV 校验、回环限制、缺参考音频、坏音频。
 - 新增 QQ 测试：@/拍一拍映射、自身消息过滤、webhook HMAC、OneBot text/record 段、网关 tick、QQ 语音回执。
 - 新增长期语音决策测试：模型选语音、失败回退文字、未确认不补发。
-- 全量离线测试 **398 项通过（2 项平台跳过）**；离线测试用本机假 HTTP 服务，不连接真实 NapCat 或 GPT-SoVITS。
+- 全量离线测试 **403 项通过（2 项平台跳过）**；离线测试用本机假 HTTP 服务，不连接真实 NapCat 或 GPT-SoVITS。
 - `qq check` 已对着假 OneBot API 实测通过（`qqReady=true`）；`qq run` 已实测启动并绑定 webhook，`/health` 返回 200，说明命令和进程骨架可运行。
-- QQ 文字已现场验证：测试群消息经 NapCat webhook 进入，模型生成回复后通过 OneBot 文字消息发送成功并获得 `message_id` 回执。天气查询也已现场返回 Open-Meteo 实时结果；看图用公网测试图经 webhook 验证，模型读取了该成员最近一张图。
+- QQ 文字已现场验证：测试群消息经 NapCat webhook 进入，模型生成回复后通过 OneBot 文字消息发送成功并获得 `message_id` 回执。天气查询也已现场返回 Open-Meteo 实时结果；看图用公网测试图经 webhook 验证；表情包 083 也已现场发送成功并获得 `message_id`。
+- 私聊也已完成实际发送验证：测试好友消息经 webhook 进入，回复走 `send_private_msg` 并取得回执。
 - 语音条尚未在真实 QQ 群验证。
 
 ## 待现场验收

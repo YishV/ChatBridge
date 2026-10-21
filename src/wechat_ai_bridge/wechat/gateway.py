@@ -11,7 +11,7 @@ from wechat_ai_bridge.message import Outcome
 from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, SendReceipt
 from wechat_ai_bridge.wechat.errors import GatewayError, GatewayFatalError
 from wechat_ai_bridge.wechat.events import normalize_gateway_message
-from wechat_ai_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat
+from wechat_ai_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat, native_private_message
 from wechat_ai_bridge.wechat.images import matches_image_receipt, outgoing_directory, static_gif
 from wechat_ai_bridge.wechat.windows import unprotect_credential, verify_native_process
 
@@ -34,18 +34,27 @@ class GatewayConfig:
     token_file: Path
     account_id: str
     groups: frozenset[str]
+    private_ids: frozenset[str]
     hook_sha256: str
+
+    @property
+    def conversations(self) -> frozenset[str]:
+        return self.groups | self.private_ids
 
     @classmethod
     def load(cls, path: Path):
         data = read_private_json(path)
         config = cls(Path(data["expectedExecutable"]).resolve(), data["sandbox"], Path(data["sandboxRoot"]).resolve(),
                      Path(data["credentialFile"]).resolve(), Path(data["tokenFile"]).resolve(),
-                     data["accountId"], frozenset(data["allowedGroupIds"]), data["hookSha256"])
+                     data["accountId"], frozenset(data["allowedGroupIds"]),
+                     frozenset(data.get("allowedPrivateIds", [])), data["hookSha256"])
         if (not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", config.sandbox)
                 or not re.fullmatch(r"[0-9a-fA-F]{64}", config.hook_sha256)
-                or not config.account_id or not config.groups
-                or any(not isinstance(group, str) or not group.endswith("@chatroom") for group in config.groups)):
+                or not config.account_id or not config.conversations
+                or any(not isinstance(group, str) or not group.endswith("@chatroom") for group in config.groups)
+                or any(not isinstance(private, str) or not private or private.endswith("@chatroom")
+                       or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.@-]{0,255}", private)
+                       for private in config.private_ids)):
             raise GatewayError("configuration_invalid")
         return config
 
@@ -109,7 +118,7 @@ class NativeClient:
                 'pid': pid}
 
     def send_text(self, group_id: str, text: str):
-        if group_id not in self.config.groups or not text.strip() or len(text.encode()) > 16000:
+        if group_id not in self.config.conversations or not text.strip() or len(text.encode()) > 16000:
             raise GatewayError("invalid_native_send")
         self.health()
         if self.can_send is None or not self.can_send(group_id):
@@ -265,7 +274,7 @@ class GatewayRunner:
                 cursors[row.shard] = max(cursors.get(row.shard, 0), row.local_id)
                 if row.create_time < self.started_at - 30:
                     continue
-                if self.image_inbox is not None and row.local_type in (3, 47, (8 << 32) | 49):
+                if self.image_inbox is not None and group.endswith('@chatroom') and row.local_type in (3, 47, (8 << 32) | 49):
                     # Media has no startup grace period: never select a delayed
                     # row created before this process started as a fresh image.
                     if row.create_time < self.started_at:
@@ -274,9 +283,15 @@ class GatewayRunner:
                         counts['imagesObserved'] += 1
                         self.service.console.image_received(group, row.sender_id)
                     continue
-                mapper = native_group_pat if row.local_type == PAT_TYPE else native_group_message
-                raw = mapper(account_id=self.account_id, group_id=group, sender_id=row.sender_id,
-                    server_id=row.server_id, local_type=row.local_type, message_content=row.text, source=row.source)
+                if group.endswith('@chatroom'):
+                    mapper = native_group_pat if row.local_type == PAT_TYPE else native_group_message
+                    raw = mapper(account_id=self.account_id, group_id=group, sender_id=row.sender_id,
+                        server_id=row.server_id, local_type=row.local_type,
+                        message_content=row.text, source=row.source)
+                else:
+                    raw = native_private_message(account_id=self.account_id, conversation_id=group,
+                        sender_id=row.sender_id, server_id=row.server_id, local_type=row.local_type,
+                        message_content=row.text)
                 incoming = normalize_gateway_message(raw, self.account_id) if raw else None
                 if incoming is None:
                     continue

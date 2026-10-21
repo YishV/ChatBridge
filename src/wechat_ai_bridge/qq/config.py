@@ -24,6 +24,7 @@ class QQSettings:
     webhook_path: str = '/onebot'
     webhook_secret: str = field(default='', repr=False)
     allowed_groups: frozenset[str] = frozenset()
+    private_users: frozenset[str] = frozenset()
     state_db: Path = Path('data/runtime/qq-chat-state.sqlite3')
     participation_mode: str = 'natural'
     cooldown_seconds: int = 5
@@ -41,6 +42,9 @@ class QQSettings:
     vision_window_seconds: int = 120
 
     def __post_init__(self):
+        if any(not isinstance(user, str) or not user or user.startswith('private:')
+               or len(user) > 64 for user in self.private_users):
+            raise ValueError('QQ 私聊白名单无效')
         parsed = urlparse(self.api_url)
         if (parsed.scheme not in ('http', 'https') or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment):
@@ -63,11 +67,18 @@ class QQSettings:
         if not isinstance(self.gpt_prompt_text, str) or len(self.gpt_prompt_text) > 1000:
             raise ValueError('GPT-SoVITS prompt 配置无效')
 
+    @property
+    def conversations(self) -> frozenset[str]:
+        return self.allowed_groups | frozenset('private:' + user for user in self.private_users)
+
     @classmethod
     def from_env(cls) -> 'QQSettings':
         load_dotenv(override=False, encoding='utf-8-sig')
         groups = frozenset(
             item.strip() for item in os.getenv('QQ_ALLOWED_GROUPS', '').split(',') if item.strip()
+        )
+        private_users = frozenset(
+            item.strip() for item in os.getenv('QQ_ALLOWED_PRIVATE_USERS', '').split(',') if item.strip()
         )
         try:
             port = int(os.getenv('QQ_WEBHOOK_PORT', '8081'))
@@ -87,6 +98,7 @@ class QQSettings:
             webhook_path=os.getenv('QQ_WEBHOOK_PATH', '/onebot').strip(),
             webhook_secret=os.getenv('QQ_WEBHOOK_SECRET', '').strip(),
             allowed_groups=groups,
+            private_users=private_users,
             state_db=Path(os.getenv('QQ_STATE_DB', 'data/runtime/qq-chat-state.sqlite3')),
             participation_mode=os.getenv('QQ_PARTICIPATION_MODE', 'natural').strip(),
             cooldown_seconds=cooldown,

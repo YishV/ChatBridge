@@ -28,6 +28,7 @@ uv run --extra native python -m unittest discover -s tests -v
 - 独立云端翻唱命令、准备不上传、Kits multipart/任务身份/下载边界、提交未知不重提、轮询恢复、女声名单、分轨跳过分离及音频时长/静音/峰值检查。测试使用虚构服务与合成音调，不能证明云端翻唱效果。
 - 语音条：@ 走语音、自然走文字、语音未确认不补发、准备失败回退文字、录音开始后失败标记为可能已发送；真实窗口和音频设备用替身，不能替代群内现场验收。
 - QQ：OneBot @/拍一拍事件映射、自身消息过滤、webhook HMAC、text/record 消息段、网关 tick、QQ 语音回执，以及 GPT-SoVITS 请求体、WAV 校验和回环限制。全部使用假 HTTP 服务，不连接真实 NapCat 或 GPT-SoVITS。
+- 私聊：微信私聊文本归一化、QQ 私聊事件映射、私聊发送目标（`send_private_msg`）和处理器直接回应；私聊白名单外的对象不进入。
 
 测试数量随实现变化，不固定总数。离线测试通过不代表真实微信、DeepSeek 和持续运行已联通。
 

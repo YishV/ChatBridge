@@ -47,7 +47,7 @@ class QQGateway:
                 continue
             if message is None:
                 continue
-            if not self.settings.allowed_groups or message.group_id not in self.settings.allowed_groups:
+            if not self.settings.conversations or message.group_id not in self.settings.conversations:
                 continue
             try:
                 result = self.service.handle(message)

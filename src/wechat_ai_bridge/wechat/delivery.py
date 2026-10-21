@@ -89,7 +89,7 @@ class DeliveryService:
     def _wants_voice(self, message: IncomingMessage, processed: ProcessResult) -> bool:
         if self.voice_policy == 'model':
             return bool(processed.voice)
-        return message.is_directed
+        return message.is_group and message.is_directed
 
     def _deliver_voice(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
         started = time.monotonic()

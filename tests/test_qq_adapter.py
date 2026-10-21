@@ -37,6 +37,8 @@ class OneBotServer:
                     data = {'message_id': 42, 'user_id': 10001, 'nickname': 'bot'}
                 elif action == 'get_group_list':
                     data = [{'group_id': 123, 'group_name': '测试群'}]
+                elif action == 'get_friend_list':
+                    data = [{'user_id': 456, 'nickname': '好友'}]
                 payload = {'status': 'ok', 'retcode': 0, 'data': data}
                 raw = json.dumps(payload).encode()
                 self.send_response(200)
@@ -101,6 +103,18 @@ class QQEventTests(unittest.TestCase):
             'message': [{'type': 'text', 'data': {'text': '自己'}}],
         }, 999)
         self.assertTrue(message.is_from_bot)
+
+    def test_private_message_is_a_directed_private_conversation(self):
+        message = map_event({
+            'post_type': 'message', 'message_type': 'private', 'user_id': 2,
+            'message_id': 9, 'self_id': 999,
+            'sender': {'nickname': '好友'},
+            'message': [{'type': 'text', 'data': {'text': '在吗'}}],
+        }, 999)
+        self.assertFalse(message.is_group)
+        self.assertEqual(message.group_id, 'private:2')
+        self.assertTrue(message.mentioned_bot)
+        self.assertTrue(message.is_directed)
 
 
 class QQGatewayTests(unittest.TestCase):
@@ -174,12 +188,18 @@ class OneBotClientTests(unittest.TestCase):
             wav = Path(temp) / 'voice.wav'
             wav.write_bytes(b'RIFF')
             self.assertEqual(client.send_group_record('123', wav), '42')
+            image = Path(temp) / 'image.gif'
+            image.write_bytes(b'GIF89a')
+            self.assertEqual(client.send_group_image('123', image), '42')
             self.assertEqual(server.calls[0][0], 'Bearer token')
             text_call = server.calls[0][1]
             self.assertEqual(text_call['message'][0]['type'], 'text')
             record = server.calls[1][1]['message'][0]
             self.assertEqual(record['type'], 'record')
             self.assertTrue(record['data']['file'].startswith('file://'))
+            image_segment = server.calls[2][1]['message'][0]
+            self.assertEqual(image_segment['type'], 'image')
+            self.assertTrue(image_segment['data']['file'].startswith('file://'))
 
     def test_action_error_is_not_a_receipt(self):
         class FailClient(OneBotClient):
@@ -194,6 +214,7 @@ class OneBotClientTests(unittest.TestCase):
         with OneBotServer() as server:
             client = OneBotClient(QQSettings(api_url=server.url))
             self.assertEqual(client.group_list(), [{'group_id': '123', 'group_name': '测试群'}])
+            self.assertEqual(client.friend_list(), [{'user_id': '456', 'nickname': '好友'}])
 
 
 class FakeSpeech:
@@ -214,7 +235,37 @@ class FakeVoiceClient:
         return 'voice-1'
 
 
+class FakePrivateClient:
+    def __init__(self):
+        self.sent = []
+    def send_private_text(self, user, text):
+        self.sent.append((user, text))
+        return 'private-1'
+
+
+class FakeImageClient:
+    def __init__(self):
+        self.images = []
+    def send_group_image(self, group, path):
+        self.images.append((group, path))
+        return 'image-1'
+
+
 class QQSenderTests(unittest.TestCase):
+    def test_group_image_uses_image_segment_receipt(self):
+        client = FakeImageClient()
+        sender = QQSender(QQSettings(voice_enabled=False), client=client)
+        receipt = sender.send_group_image('1', Path('meme.gif'))
+        self.assertTrue(receipt.confirmed)
+        self.assertEqual(client.images, [('1', Path('meme.gif'))])
+
+    def test_private_text_uses_send_private_msg_target(self):
+        client = FakePrivateClient()
+        sender = QQSender(QQSettings(private_users=frozenset({'2'}), voice_enabled=False), client=client)
+        receipt = sender.send_group_text('private:2', '私聊你好')
+        self.assertTrue(receipt.confirmed)
+        self.assertEqual(client.sent, [('2', '私聊你好')])
+
     def test_voice_uses_record_and_returns_receipt(self):
         with TemporaryDirectory() as temp:
             qq = QQSettings(allowed_groups=frozenset({'1'}), voice_enabled=True)

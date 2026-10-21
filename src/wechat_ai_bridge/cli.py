@@ -128,15 +128,15 @@ def run_qq(args, settings, emit):
     except ValueError:
         raise GatewayError('qq_config_invalid') from None
     client = OneBotClient(qq)
-    if args.action == 'groups':
+    if args.action in ('groups', 'friends'):
         try:
-            groups = client.group_list()
+            values = client.group_list() if args.action == 'groups' else client.friend_list()
         except OneBotError as error:
             emit({'status': 'qq_unavailable', 'error': error.code, 'sent': False})
             raise SystemExit(1) from None
-        emit({'groups': groups, 'sent': False})
+        emit({args.action: values, 'sent': False})
         return
-    if not qq.allowed_groups:
+    if not qq.conversations:
         raise GatewayError('qq_groups_missing')
     if args.action == 'check':
         try:
@@ -160,6 +160,7 @@ def run_qq(args, settings, emit):
             'webhookReady': webhook_ok,
             'webhookPort': qq.webhook_port,
             'configuredGroups': len(qq.allowed_groups),
+            'configuredPrivates': len(qq.private_users),
             'voiceEnabled': qq.voice_enabled,
             'gptReferenceReady': reference_ok,
             'visionEnabled': qq.vision_enabled,
@@ -169,8 +170,8 @@ def run_qq(args, settings, emit):
         return
     store = StateStore(qq.state_db)
     try:
-        for group in qq.allowed_groups:
-            store.allow_group(group)
+        for conversation in qq.conversations:
+            store.allow_group(conversation)
         runtime = replace(settings, state_db=qq.state_db,
             participation_mode=qq.participation_mode,
             cooldown_seconds=qq.cooldown_seconds,
@@ -178,9 +179,13 @@ def run_qq(args, settings, emit):
             spontaneous_cooldown_seconds=qq.spontaneous_cooldown_seconds,
             voice_enabled=qq.voice_enabled,
             voice_max_chars=qq.voice_max_chars)
-        processor = create_processor(runtime, store, history_groups=qq.allowed_groups,
-                                     meme_catalog=None, vision=(
-                                         QQVisionInbox(qq.allowed_groups, store,
+        try:
+            catalog = create_meme_catalog(settings) if settings.memes_enabled else None
+        except (MemeError, OSError):
+            catalog = None
+        processor = create_processor(runtime, store, history_groups=qq.conversations,
+                                     meme_catalog=catalog, vision=(
+                                         QQVisionInbox(qq.conversations, store,
                                                        window_seconds=qq.vision_window_seconds)
                                          if qq.vision_enabled else None),
                                      voice_enabled=qq.voice_enabled)
@@ -190,12 +195,16 @@ def run_qq(args, settings, emit):
             raise GatewayError('qq_voice_config_invalid') from None
         console = NullConsole() if args.quiet_console else ConsoleLog()
         service = DeliveryService(processor, store, sender, console=console,
-            meme_catalog=None, voice_sender=sender if qq.voice_enabled else None,
+            meme_catalog=catalog,
+            meme_cooldown_seconds=settings.meme_cooldown_seconds,
+            meme_recent_count=settings.meme_recent_count,
+            voice_sender=sender if qq.voice_enabled else None,
             voice_policy='model')
         gateway = QQGateway(qq, client, service,
                             vision=processor.chat.vision if qq.vision_enabled else None)
         with SingleInstance(Path('data/runtime/qq.gateway.lock')):
             emit({'status': 'qq_started', 'groups': len(qq.allowed_groups),
+                  'privates': len(qq.private_users), 'memeAssets': len(catalog.assets) if catalog else 0,
                   'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
             try:
                 gateway.run()
@@ -208,9 +217,11 @@ def run_qq(args, settings, emit):
 def run_gateway(args, settings, store):
     config = GatewayConfig.load(settings.gateway_config)
     account, passphrase = config.reader_credentials()
-    reader = EncryptedMessageReader(account, passphrase, config.account_id, config.groups)
+    reader = EncryptedMessageReader(account, passphrase, config.account_id, config.conversations)
     native = NativeClient(config, account.name,
         can_send=lambda group: store.is_allowed(group) and not store.is_paused())
+    for private_id in config.private_ids:
+        store.allow_group(private_id)
     health = native.health()
     catalog = None
     if settings.memes_enabled:
@@ -231,13 +242,14 @@ def run_gateway(args, settings, store):
     vision = (VisionInbox(NativeImageResolver(reader, config, health_check=native.health), store,
         config.account_id, config.groups, window_seconds=settings.vision_window_seconds)
         if settings.vision_enabled else None)
-    processor = create_processor(settings, store, history_groups=config.groups, meme_catalog=active_catalog, vision=vision)
+    processor = create_processor(settings, store, history_groups=config.conversations, meme_catalog=active_catalog, vision=vision)
     processor.chat._load_system_prompt()
-    for group in config.groups:
+    for group in config.conversations:
         reader.snapshot(group)
     status = {"gatewayReady": health["ready"], "clientVersion": health["version"],
         "modelConfigured": bool(settings.model_api_key), "participationMode": settings.participation_mode,
-        "allowedGroupCount": sum(store.is_allowed(group) for group in config.groups), "paused": store.is_paused(),
+        "allowedGroupCount": sum(store.is_allowed(group) for group in config.conversations),
+        "allowedPrivateCount": len(config.private_ids), "paused": store.is_paused(),
         "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds,
         'historyRestored': processor.chat.restored_messages, 'historyContextMessages': settings.history_context_messages,
         'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
@@ -256,7 +268,7 @@ def run_gateway(args, settings, store):
     with SingleInstance(lock_file):
         console = NullConsole() if getattr(args, 'quiet_console', False) else ConsoleLog()
         service = DeliveryService(processor, store,
-            NativeSender(reader, native, store, config.account_id, config.groups), console=console,
+            NativeSender(reader, native, store, config.account_id, config.conversations), console=console,
             meme_catalog=active_catalog,
             meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
             voice_sender=voice_sender)
@@ -264,7 +276,8 @@ def run_gateway(args, settings, store):
             console.notice('未加载表情素材，继续文字聊天；可在另一终端执行 memes sync 后重启网关')
         elif settings.memes_enabled and not status['memeNativeReady']:
             console.notice('本机组件暂不支持表情发送，继续文字聊天')
-        runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups, image_inbox=vision)
+        runner = GatewayRunner(reader, native, service, store, config.account_id,
+                               config.conversations, image_inbox=vision)
         runner.initialize()
         console.notice("网关已启动：收到消息和发送结果会实时打印到终端，不写入日志文件")
         emit({"status": "running", **status, "historyReplied": False})
@@ -297,8 +310,10 @@ def main() -> None:
     voice.add_argument('--group', help='say 时的群 ID；必须是已配置群')
     voice.add_argument('--text', help='say 时要朗读的文字')
     qq = commands.add_parser('qq', help='NapCat/OneBot 11 QQ 网关')
-    qq.add_argument('action', choices=('check', 'run', 'groups'))
+    qq.add_argument('action', choices=('check', 'run', 'groups', 'friends'))
     qq.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复')
+    contacts = commands.add_parser('contacts', help='本机列出微信联系人 wxid，用于私聊白名单')
+    contacts.add_argument('--query', help='按 wxid、备注或昵称过滤')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
     run = commands.add_parser("run", help="持续处理已配置白名单群的新消息")
     run.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复，仅输出状态计数')
@@ -315,6 +330,12 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        if args.command == 'contacts':
+            config = GatewayConfig.load(settings.gateway_config)
+            account, passphrase = config.reader_credentials()
+            reader = EncryptedMessageReader(account, passphrase, config.account_id, config.conversations)
+            emit({'contacts': reader.list_contacts(args.query)})
+            return
         if args.command == 'weather':
             client = create_weather_client(settings)
             if client is None:

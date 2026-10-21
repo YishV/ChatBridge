@@ -184,16 +184,44 @@ lists are rejected. Both compressed and decoded data are limited to 64 KiB.
     return tuple(dict.fromkeys(identifiers))
 
 
+def native_private_message(
+    *, account_id: str, conversation_id: str, sender_id: str, server_id: int | str,
+    local_type: int, message_content: str,
+) -> GatewayMessage | None:
+    """Map a confirmed one-to-one native text row without group assumptions."""
+    if (any(not isinstance(value, str) or not _IDENTIFIER.fullmatch(value)
+            for value in (account_id, conversation_id, sender_id))
+            or conversation_id.endswith("@chatroom")
+            or type(local_type) is not int or local_type != 1
+            or not isinstance(message_content, str) or not message_content.strip()
+            or type(server_id) not in (int, str)):
+        return None
+    server = str(server_id)
+    if not re.fullmatch(r"[0-9]{1,32}", server) or int(server) <= 0:
+        return None
+    identity = json.dumps([account_id, conversation_id, str(int(server))], separators=(",", ":"))
+    return GatewayMessage(
+        message_id="wechat-private:" + hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+        conversation_id=conversation_id,
+        sender_id=sender_id,
+        text=message_content,
+        message_type="text",
+        is_group=False,
+        is_from_bot=sender_id == account_id,
+        mentioned_account_ids=None,
+    )
+
+
 def native_group_message(
     *, account_id: str, group_id: str, sender_id: str, server_id: int | str,
     local_type: int, message_content: str, source: str | bytes | None,
 ) -> GatewayMessage | None:
     """Map native columns and resolved identities to one confirmed group text.
 
-server_id, local_type, message_content and source are native row fields. Sender
-IDs must already be resolved from the same shard's Name2Id table. Unknown mention
-metadata remains None, so downstream normalization cannot trigger from text.
-"""
+    server_id, local_type, message_content and source are native row fields. Sender
+    IDs must already be resolved from the same shard's Name2Id table. Unknown mention
+    metadata remains None, so downstream normalization cannot trigger from text.
+    """
     if (any(not isinstance(value, str) or not _IDENTIFIER.fullmatch(value)
             for value in (account_id, group_id, sender_id))
             or not group_id.endswith("@chatroom")

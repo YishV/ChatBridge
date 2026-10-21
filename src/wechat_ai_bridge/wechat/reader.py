@@ -42,7 +42,7 @@ class EncryptedMessageReader:
         from that message. This lookup does not establish group membership, and
         contact.nick_name is a WeChat nickname rather than a group-specific name.
         """
-        if (group_id not in self.groups or not group_id.endswith("@chatroom")
+        if (group_id not in self.groups
                 or not isinstance(sender_id, str) or not sender_id.strip()
                 or sender_id == self.account_id or sender_id.endswith("@chatroom")):
             return None
@@ -86,7 +86,7 @@ class EncryptedMessageReader:
         Voice sending drives the visible WeChat UI, so an ambiguous display
         name is rejected rather than risking a message in the wrong chat.
         """
-        if group_id not in self.groups or not group_id.endswith('@chatroom'):
+        if group_id not in self.groups:
             return None
         directory = self.account_path / 'db_storage/contact'
         resolved_directory = directory.resolve()
@@ -110,9 +110,10 @@ class EncryptedMessageReader:
                 name = ' '.join(cleaned.split())[:64].strip()
                 if not name:
                     return None
-                duplicate = connection.execute(
+                duplicate = (connection.execute(
                     'SELECT COUNT(*) FROM contact WHERE username LIKE ? AND (remark=? OR nick_name=?)',
                     ('%@chatroom', name, name)).fetchone()[0]
+                    if group_id.endswith('@chatroom') else 1)
                 if duplicate != 1:
                     return None
                 return name
@@ -120,6 +121,48 @@ class EncryptedMessageReader:
                 connection.close()
         except Exception:
             return None
+
+    def list_contacts(self, query: str | None = None, *, limit: int = 100) -> list[dict]:
+        """List local one-to-one contact wxids for explicit private allowlisting."""
+        if query is not None and (not isinstance(query, str) or len(query) > 64):
+            raise GatewayError('contact_query_invalid')
+        if type(limit) is not int or not 1 <= limit <= 200:
+            raise GatewayError('contact_limit_invalid')
+        directory = self.account_path / 'db_storage/contact'
+        resolved_directory = directory.resolve()
+        path = (directory / 'contact.db').resolve()
+        if not resolved_directory.is_relative_to(self.account_path) or not path.is_relative_to(resolved_directory):
+            raise GatewayError('contact_database_missing')
+        if not path.is_file():
+            raise GatewayError('contact_database_missing')
+        pattern = '%' + (query.strip() if query else '') + '%'
+        try:
+            connection = self._connect(path)
+            try:
+                rows = connection.execute(
+                    'SELECT username, remark, nick_name FROM contact '
+                    'WHERE username NOT LIKE ? AND username NOT LIKE ? AND username NOT LIKE ? '
+                    'AND (username LIKE ? OR remark LIKE ? OR nick_name LIKE ?) '
+                    "ORDER BY COALESCE(NULLIF(remark, ''), NULLIF(nick_name, ''), username) LIMIT ?",
+                    ('%@chatroom', 'gh_%', '%@openim', pattern, pattern, pattern, limit)).fetchall()
+            finally:
+                connection.close()
+        except GatewayError:
+            raise
+        except Exception:
+            raise GatewayError('contact_database_unreadable') from None
+        contacts = []
+        for username, remark, nickname in rows:
+            if not isinstance(username, str) or not username:
+                continue
+            raw = (remark or '').strip() or (nickname or '').strip()
+            cleaned = ''.join(
+                ' ' if char.isspace() else char
+                for char in raw
+                if char.isspace() or unicodedata.category(char) not in {'Cc', 'Cf'})
+            name = ' '.join(cleaned.split())[:64].strip()
+            contacts.append({'wxid': username, 'name': name or username})
+        return contacts
 
     def _shards(self):
         directory = self.account_path / "db_storage/message"
@@ -157,7 +200,7 @@ class EncryptedMessageReader:
             raise GatewayError("database_unreadable") from None
 
     def _table(self, group_id: str):
-        if group_id not in self.groups or not group_id.endswith("@chatroom"):
+        if group_id not in self.groups:
             raise GatewayError("conversation_not_allowed")
         return "Msg_" + hashlib.md5(group_id.encode()).hexdigest()
 

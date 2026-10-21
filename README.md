@@ -135,18 +135,25 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 
 配置：`WECHAT_AI_BRIDGE_VOICE_ENABLED`、`WECHAT_AI_BRIDGE_VOICE_NAME`（默认 `zh-CN-XiaoxiaoNeural`）、`WECHAT_AI_BRIDGE_VOICE_MAX_CHARS`（默认 120）。`run --check` 会报告 `voiceEnabled` 和 `voiceReady`。完整记录见 [语音条实施记录](docs/plans/2026-10-20-voice-messages.md)。
 
+### 私聊（微信与 QQ）
+
+- 微信：先执行 `uv run --extra native wechat-ai-bridge contacts --query 对方昵称` 查 wxid，在 `data/runtime/native-hook/gateway.json` 增加 `"allowedPrivateIds": ["对方wxid"]`；私聊按一对一处理，目前只发文字（微信私聊语音和看图未启用）。
+- QQ：在 `.env` 填 `QQ_ALLOWED_PRIVATE_USERS=好友QQ号`；可先执行 `qq friends` 查看好友列表。QQ 私聊支持文字和语音条，发送走 `send_private_msg`。
+- 两边都只响应显式白名单里的私聊对象，避免陌生人私聊消耗模型配额。
+
 ### QQ（NapCat + GPT-SoVITS，实验）
 
-同一仓库新增了 QQ 进程，和微信进程相互独立：QQ 走 NapCat 的 OneBot 11 HTTP API 发消息、HTTP POST webhook 收事件；语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再交给 NapCat 转成 SILK 语音条。模型可以在 `decide_reply` 里选择 `voice=true`，失败时回退文字。
+同一仓库新增了 QQ 进程，和微信进程相互独立：QQ 走 NapCat 的 OneBot 11 HTTP API 发消息、HTTP POST webhook 收事件；语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再交给 NapCat 转成 SILK 语音条。QQ 还复用微信侧的单帧 GIF 表情库（`image` 消息段），支持图片上下文和私聊白名单。模型可以在 `decide_reply` 里选择 `voice=true`，失败时回退文字。
 
 ```powershell
 # 先按 docs/qq-gpt-sovits.md 配好 NapCat、QQ_ALLOWED_GROUPS 和 GPT-SoVITS
 uv run --extra native wechat-ai-bridge qq groups   # 只读群号/群名
+uv run --extra native wechat-ai-bridge qq friends  # 只读好友，用于私聊白名单
 uv run --extra native wechat-ai-bridge qq check
 uv run --extra native wechat-ai-bridge qq run
 ```
 
-`qq groups` 只读取群列表，用来获取 `QQ_ALLOWED_GROUPS`；`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
+`qq groups`/`qq friends` 只读取列表，用来获取 `QQ_ALLOWED_GROUPS`/`QQ_ALLOWED_PRIVATE_USERS`；`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群/私聊配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
 
 ## 自然参与与数据边界
 

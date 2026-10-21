@@ -18,7 +18,7 @@ class IncomingMessage:
 
     @property
     def is_directed(self) -> bool:
-        return self.mentioned_bot or self.interaction == "pat"
+        return not self.is_group or self.mentioned_bot or self.interaction == "pat"
 
 
 class Outcome(StrEnum):

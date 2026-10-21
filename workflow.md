@@ -134,5 +134,7 @@ uv run --extra native wechat-ai-bridge qq run
 `qq check` 不发送消息；它检查 OneBot 登录、webhook 端口、群数量和参考音频。真实验收需要：测试小号、测试群、NapCat HTTP 服务 + webhook、GPT-SoVITS 服务。详细步骤见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
 
 - QQ 模型通过 `decide_reply.voice` 选择文字或语音；GPT-SoVITS 失败/超时回退文字，发送状态未知不自动重试。
+- QQ 私聊用 `QQ_ALLOWED_PRIVATE_USERS` 显式白名单；未列出的好友不响应。私聊消息直接回答，文字走 `send_private_msg`，语音走 `send_private_msg` 的 `record` 段。
+- 微信私聊用 `gateway.json` 的 `allowedPrivateIds`；只发文字，不走群语音/看图。
 - NapCat 是个人号非官方协议，存在账号风控；只用测试小号，不暴露 webhook 到公网。
 - 离线测试不能证明 QQ 语音条显示；必须现场确认 NapCat 转 SILK 后的形态。

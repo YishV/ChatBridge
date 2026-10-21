@@ -76,6 +76,20 @@ class OneBotClient:
                            'group_name': item.get('group_name') if isinstance(item.get('group_name'), str) else ''})
         return groups
 
+
+    def friend_list(self) -> list[dict]:
+        data = self.call('get_friend_list', {})
+        result = data.get('data')
+        if not isinstance(result, list):
+            raise OneBotError('onebot_response_invalid')
+        friends = []
+        for item in result:
+            if not isinstance(item, dict) or item.get('user_id') is None:
+                continue
+            friends.append({'user_id': str(item['user_id']),
+                            'nickname': item.get('nickname') if isinstance(item.get('nickname'), str) else ''})
+        return friends
+
     def send_group_message(self, group_id: str, message: list[dict]) -> str:
         if not isinstance(group_id, str) or not group_id or len(group_id) > 64:
             raise OneBotError('onebot_group_invalid')
@@ -93,6 +107,49 @@ class OneBotClient:
         if not isinstance(text, str) or not text.strip() or len(text.encode('utf-8')) > 16000:
             raise OneBotError('onebot_text_invalid')
         return self.send_group_message(group_id, [{'type': 'text', 'data': {'text': text}}])
+
+    def send_group_image(self, group_id: str, path: Path) -> str:
+        path = Path(path).resolve()
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise OneBotError('onebot_image_missing')
+        return self.send_group_message(
+            group_id, [{'type': 'image', 'data': {'file': path.as_uri()}}]
+        )
+
+    def send_private_message(self, user_id: str, message: list[dict]) -> str:
+        if not isinstance(user_id, str) or not user_id or len(user_id) > 64:
+            raise OneBotError('onebot_user_invalid')
+        if not isinstance(message, list) or not message:
+            raise OneBotError('onebot_message_invalid')
+        data = self.call('send_private_msg', {
+            'user_id': int(user_id) if user_id.isdigit() else user_id,
+            'message': message, 'auto_escape': False})
+        result = data.get('data')
+        message_id = result.get('message_id') if isinstance(result, dict) else None
+        if message_id is None or isinstance(message_id, bool):
+            raise OneBotError('onebot_receipt_missing')
+        return str(message_id)
+
+    def send_private_text(self, user_id: str, text: str) -> str:
+        if not isinstance(text, str) or not text.strip() or len(text.encode('utf-8')) > 16000:
+            raise OneBotError('onebot_text_invalid')
+        return self.send_private_message(user_id, [{'type': 'text', 'data': {'text': text}}])
+
+    def send_private_image(self, user_id: str, path: Path) -> str:
+        path = Path(path).resolve()
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise OneBotError('onebot_image_missing')
+        return self.send_private_message(
+            user_id, [{'type': 'image', 'data': {'file': path.as_uri()}}]
+        )
+
+    def send_private_record(self, user_id: str, path: Path) -> str:
+        path = Path(path).resolve()
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise OneBotError('onebot_record_missing')
+        return self.send_private_message(
+            user_id, [{'type': 'record', 'data': {'file': path.as_uri()}}]
+        )
 
     def send_group_record(self, group_id: str, path: Path) -> str:
         path = Path(path).resolve()

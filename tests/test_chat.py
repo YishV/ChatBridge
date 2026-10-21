@@ -146,13 +146,17 @@ class ProcessorTests(unittest.TestCase):
         self.assertIn("大家想吃火锅", json.dumps(self.model.calls[-1], ensure_ascii=False))
 
     def test_filters_do_not_call_model(self):
-        cases = [replace(message(), is_group=False), replace(message(), is_from_bot=True),
-                 message(text="  "), message(group="unlisted")]
+        cases = [replace(message(), is_from_bot=True), message(text="  "), message(group="unlisted")]
         for incoming in cases:
             self.assertEqual(self.processor.process(incoming).outcome, Outcome.IGNORED)
         self.store.set_paused(True)
         self.assertEqual(self.processor.process(message()).outcome, Outcome.IGNORED)
         self.assertEqual(self.model.calls, [])
+
+    def test_private_message_is_answered_as_directed(self):
+        private = replace(message(), is_group=False, mentioned_bot=True)
+        self.assertEqual(self.processor.process(private).outcome, Outcome.ANSWERED)
+        self.assertEqual(len(self.model.calls), 1)
 
     def test_burst_restarts_five_second_deadline_and_keeps_full_context(self):
         processor = MessageProcessor(self.store, self.chat, cooldown_seconds=0,

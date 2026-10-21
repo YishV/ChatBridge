@@ -29,15 +29,27 @@ class QQSender:
                 max_chars=settings.voice_max_chars,
             ))
 
+    @staticmethod
+    def _private_user(conversation_id: str) -> str | None:
+        return conversation_id[8:] if conversation_id.startswith('private:') else None
+
     def send_group_text(self, group_id: str, text: str) -> SendReceipt:
         try:
-            message_id = self.client.send_group_text(group_id, text)
+            private = self._private_user(group_id)
+            message_id = (self.client.send_private_text(private, text) if private is not None
+                          else self.client.send_group_text(group_id, text))
         except OneBotError:
             return SendReceipt(False)
         return SendReceipt(True, message_id)
 
     def send_group_image(self, group_id: str, path: Path) -> SendReceipt:
-        return SendReceipt(False)
+        try:
+            private = self._private_user(group_id)
+            message_id = (self.client.send_private_image(private, path) if private is not None
+                          else self.client.send_group_image(group_id, path))
+        except OneBotError:
+            return SendReceipt(False)
+        return SendReceipt(True, message_id)
 
     def send_group_voice(self, group_id: str, text: str) -> VoiceSendResult:
         if not self.settings.voice_enabled or self.speech is None:
@@ -53,7 +65,9 @@ class QQSender:
         except SpeechError as exc:
             raise VoiceError(exc.code) from exc
         try:
-            message_id = self.client.send_group_record(group_id, wav)
+            private = self._private_user(group_id)
+            message_id = (self.client.send_private_record(private, wav) if private is not None
+                          else self.client.send_group_record(group_id, wav))
         except OneBotError as exc:
             # A transport error may have happened after NapCat queued the file.
             raise VoiceError('qq_voice_unconfirmed', sent=True) from exc

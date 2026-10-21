@@ -19,22 +19,24 @@ class GatewayMessage:
 
 
 def normalize_gateway_message(raw: GatewayMessage, bot_account_id: str) -> IncomingMessage | None:
-    """Accept group text or a validated pat directed at the current account."""
-    if (raw.message_type not in ("text", "pat") or not raw.is_group or not raw.message_id.strip()
+    """Accept group/private text or a validated group pat directed at the account."""
+    if (raw.message_type not in ("text", "pat") or not raw.message_id.strip()
             or not raw.conversation_id.strip() or not raw.sender_id.strip()
             or not bot_account_id.strip()):
         return None
     is_pat = raw.message_type == "pat"
-    if is_pat and (raw.target_account_id != bot_account_id or raw.is_from_bot or raw.sender_id == bot_account_id):
+    if is_pat and (raw.is_group is not True or raw.target_account_id != bot_account_id
+                   or raw.is_from_bot or raw.sender_id == bot_account_id):
         return None
+    mentioned = (not raw.is_group) or (not is_pat and raw.mentioned_account_ids is not None
+                                       and bot_account_id in raw.mentioned_account_ids)
     return IncomingMessage(
         message_id=raw.message_id,
         group_id=raw.conversation_id,
         sender_id=raw.sender_id,
         text=raw.text,
-        mentioned_bot=(not is_pat and raw.mentioned_account_ids is not None
-                       and bot_account_id in raw.mentioned_account_ids),
-        is_group=True,
+        mentioned_bot=mentioned,
+        is_group=raw.is_group,
         is_from_bot=raw.is_from_bot,
         interaction="pat" if is_pat else "text",
     )
