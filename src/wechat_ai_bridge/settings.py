@@ -34,8 +34,16 @@ class Settings:
     voice_enabled: bool = False
     voice_name: str = "zh-CN-XiaoxiaoNeural"
     voice_max_chars: int = 120
+    weather_enabled: bool = True
+    weather_timeout_seconds: float = 5
+    weather_cache_seconds: int = 600
 
     def __post_init__(self):
+        if (type(self.weather_enabled) is not bool or isinstance(self.weather_timeout_seconds, bool)
+                or not isinstance(self.weather_timeout_seconds, (int, float))
+                or not math.isfinite(self.weather_timeout_seconds) or not 1 <= self.weather_timeout_seconds <= 30
+                or type(self.weather_cache_seconds) is not int or not 0 <= self.weather_cache_seconds <= 3600):
+            raise ValueError('天气开关、超时或缓存配置无效')
         if (type(self.memes_enabled) is not bool or type(self.meme_cooldown_seconds) is not int
                 or not 0 <= self.meme_cooldown_seconds <= 3600
                 or type(self.meme_recent_count) is not int or not 1 <= self.meme_recent_count <= 20):
@@ -58,6 +66,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv(override=False, encoding="utf-8-sig")
+        weather_enabled = os.getenv('WECHAT_AI_BRIDGE_WEATHER_ENABLED', 'true').strip().lower()
+        if weather_enabled not in ('true', 'false', '1', '0'):
+            raise ValueError('天气开关必须为 true 或 false')
         memes_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMES_ENABLED', 'true').strip().lower()
         if memes_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('表情包开关必须为 true 或 false')
@@ -98,6 +109,9 @@ class Settings:
             voice_enabled=voice_enabled in ('true', '1'),
             voice_name=os.getenv('WECHAT_AI_BRIDGE_VOICE_NAME', 'zh-CN-XiaoxiaoNeural').strip(),
             voice_max_chars=int(os.getenv('WECHAT_AI_BRIDGE_VOICE_MAX_CHARS', '120')),
+            weather_enabled=weather_enabled in ('true', '1'),
+            weather_timeout_seconds=float(os.getenv('WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS', '5')),
+            weather_cache_seconds=int(os.getenv('WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS', '600')),
         )
         if (result.participation_mode not in ("natural", "mentions")
                 or result.model_thinking not in ("enabled", "disabled")

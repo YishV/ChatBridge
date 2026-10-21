@@ -83,6 +83,26 @@ uv run --extra native wechat-ai-bridge memes check
 
 可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
 
+### 天气查询
+
+默认接入 [Open-Meteo](https://open-meteo.com/)，个人非商用无需 API 密钥。可在授权群里问“杭州明天要带伞吗”“北京未来七天天气”“上海现在多少度”。原生 `@` 即时处理；不 `@` 时沿用自然参与和消息合并规则，闲聊天气不等于自动播报。
+
+没给城市时先追问；同名地点需补充省份或国家，例如“朝阳,辽宁省”。只参考同群同成员的有限历史理解地点，不从昵称推断，也不把别人的所在地当作你的。城市追问短时保留约 5 分钟；普通跟进可参考同一成员历史，重启恢复遵循现有聊天记录规则。
+
+当前支持当前天气和未来 7 天日预报，不包含历史天气、小时预报、气象预警和空气质量。当前数据来自天气模型格点，不宣称为气象站观测。回复附地点、数据/预报日期、查询时间和来源链接；时间意图按北京时间理解，天气数据标明查询地点时区。缺失值为未知，接口故障会说明暂时查不到，不用模型知识补造预报。
+
+本机可独立验证接口，不调用 DeepSeek、不读取群记录或发送微信消息：
+
+```powershell
+uv run --extra native wechat-ai-bridge weather --city "杭州,浙江省"
+```
+
+`.env` 的 `WECHAT_AI_BRIDGE_WEATHER_ENABLED=true` 为开关，`WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS=5` 为每次天气网络请求的超时，`WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS=600` 为缓存秒数，修改后重启生效。未命中缓存时需要地理检索和预报两个网络请求；最多缓存 128 个成功地点，过期或跨当地午夜后重新获取，失败不返回过期数据。
+
+天气问题通常需要两次模型请求：先抽取城市/日期，再按人设组织回复；每次物理调用均计群配额，普通聊天仍一次，暂时错误最多整体重试一次，各阶段复检暂停与白名单。天气服务请求只包含受限城市字段、坐标和预报参数，不附群记录、身份或模型密钥。城市字段有字符、长度及常见句式/敏感字段校验；这属于保守检查，不能替代完善的地名识别。
+
+免费接口仅供非商用并需保留数据署名，见 [服务条款](https://open-meteo.com/en/terms)。接口实测和离线测试不替代群内验收；开发过程不自动启动机器人。
+
 ### 语音条（实验功能，默认关闭）
 
 当前暂时关闭自动语音条，`.env` 保持 `WECHAT_AI_BRIDGE_VOICE_ENABLED=false`，重启后原生 `@` 和拍一拍也使用文字回复。

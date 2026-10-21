@@ -220,7 +220,9 @@ class GatewayRunner:
             if isinstance(result.media_reason, str) and result.media_reason not in counts['mediaErrorCodes']:
                 counts['mediaErrorCodes'].append(result.media_reason)
             attempts = result.processed.model_attempts
-            if type(attempts) is int:
+            if type(result.processed.model_retries) is int:
+                counts['modelRetries'] += result.processed.model_retries
+            elif type(attempts) is int:
                 counts['modelRetries'] += max(0, attempts - 1)
             if result.processed.outcome == Outcome.ERROR:
                 counts["modelErrors"] += 1

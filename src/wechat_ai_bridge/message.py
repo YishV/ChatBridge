@@ -38,6 +38,7 @@ class ProcessResult:
     reason: str | None = None
     model_attempts: int = 0
     meme_id: str | None = None
+    model_retries: int | None = None
 
 
 @dataclass(frozen=True)

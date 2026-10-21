@@ -17,6 +17,7 @@ from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.voice.errors import VoiceError
+from wechat_ai_bridge.weather import WeatherClient, WeatherError
 from wechat_ai_bridge.wechat.delivery import DeliveryService
 from wechat_ai_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeClient, NativeSender
 from wechat_ai_bridge.wechat.instance import SingleInstance
@@ -38,6 +39,11 @@ def create_model(settings):
 _UNSET = object()
 
 
+def create_weather_client(settings):
+    return WeatherClient(timeout_seconds=settings.weather_timeout_seconds,
+        cache_seconds=settings.weather_cache_seconds) if settings.weather_enabled else None
+
+
 def create_meme_catalog(settings, *, outgoing=None):
     if not settings.memes_enabled:
         return None
@@ -56,7 +62,8 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         alias_key=load_identity_key(identity_path), history_store=store,
         history_groups=groups, history_limit=settings.history_context_messages,
         meme_catalog=meme_catalog,
-        meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count)
+        meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
+        weather_client=create_weather_client(settings))
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -142,7 +149,8 @@ def run_gateway(args, settings, store):
         'historyRestored': processor.chat.restored_messages, 'historyContextMessages': settings.history_context_messages,
         'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
         'memeNativeReady': health.get('nativeStickerSend') is True,
-        'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None}
+        'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None,
+        'weatherEnabled': settings.weather_enabled, 'weatherCacheSeconds': settings.weather_cache_seconds}
     if args.check:
         emit(status)
         return
@@ -179,6 +187,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="通用微信群 AI 聊天机器人")
     commands = parser.add_subparsers(dest="command", required=True)
     add_cover_parser(commands)
+    weather = commands.add_parser('weather', help='本机查询天气，不调用聊天模型或发送微信消息')
+    weather.add_argument('--city', required=True, help='城市名，可用逗号加省份限定，例如 杭州,浙江省')
     memes = commands.add_parser('memes', help='同步和查看场景表情素材，不发送微信消息')
     memes.add_argument('action', choices=('sync', 'list', 'check', 'prepare'))
     memes.add_argument('--id', help='prepare 时指定已注册素材编号，如 083')
@@ -208,6 +218,13 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        if args.command == 'weather':
+            client = create_weather_client(settings)
+            if client is None:
+                emit({'status': 'weather_disabled'})
+            else:
+                emit(client.lookup(args.city))
+            return
         if args.command == 'voice':
             run_voice(args, settings, emit)
             return
@@ -262,6 +279,9 @@ def main() -> None:
         raise SystemExit(1) from None
     except VoiceError as error:
         emit({'status': 'voice_unavailable', 'error': error.code})
+        raise SystemExit(1) from None
+    except WeatherError as error:
+        emit({'status': 'weather_unavailable', 'error': error.code})
         raise SystemExit(1) from None
     except GatewayError as error:
         emit({"status": "stopped", "error": str(error)})

@@ -10,6 +10,11 @@ from wechat_ai_bridge.qa.service import ChatService
 from wechat_ai_bridge.state.store import StateStore
 
 
+class _CallBlocked(Exception):
+    def __init__(self, outcome: Outcome, reason: str):
+        self.outcome, self.reason = outcome, reason
+
+
 class MessageProcessor:
     def __init__(self, store: StateStore, chat: ChatService, *, cooldown_seconds: int = 5,
                  hourly_quota: int = 60, participation_mode: str = "natural",
@@ -72,27 +77,50 @@ class MessageProcessor:
             return ProcessResult(Outcome.DUPLICATE)
         if reservation == "rate_limited":
             return ProcessResult(Outcome.RATE_LIMITED)
-        for attempt in (1, 2):
+        calls, retries = 0, 0
+        retrying = False
+
+        def guard():
             if self.store.is_paused() or not self.store.is_allowed(message.group_id):
-                return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=attempt - 1)
+                raise _CallBlocked(Outcome.IGNORED, 'paused_or_not_allowed')
+
+        def model_call(method, *args, **kwargs):
+            nonlocal calls, retries
+            guard()
+            if calls:
+                call_id = 'model-call:' + hashlib.sha256(f'{message.message_id}:{calls + 1}'.encode()).hexdigest()
+                if self.store.reserve(call_id, message.group_id, 0, self.hourly_quota) != 'reserved':
+                    raise _CallBlocked(Outcome.RATE_LIMITED, 'model_quota')
+            calls += 1
+            if retrying:
+                retries += 1
+            return method(*args, **kwargs)
+
+        last_error = None
+        for attempt in (1, 2):
             try:
-                generated = self.chat.generate(message)
+                guard()
+                generated = self.chat.generate(message, model_call=model_call, guard=guard)
                 answer = generated.reply
+            except _CallBlocked as blocked:
+                if blocked.outcome == Outcome.RATE_LIMITED and last_error is not None:
+                    return ProcessResult(Outcome.ERROR, reason=last_error.code, model_attempts=calls, model_retries=retries)
+                return ProcessResult(blocked.outcome, reason=blocked.reason, model_attempts=calls, model_retries=retries)
             except ModelError as error:
+                last_error = error
                 self.store.record_model_failure(error.code, attempt)
                 if attempt == 1 and error.retryable:
                     if self.store.is_paused() or not self.store.is_allowed(message.group_id):
-                        return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=attempt)
-                    retry_id = 'model-retry:' + hashlib.sha256(message.message_id.encode()).hexdigest()
-                    if self.store.reserve(retry_id, message.group_id, 0, self.hourly_quota) == 'reserved':
-                        self.retry_sleep(0.5)
-                        continue
-                return ProcessResult(Outcome.ERROR, reason=error.code, model_attempts=attempt)
+                        return ProcessResult(Outcome.IGNORED, reason='paused_or_not_allowed', model_attempts=calls, model_retries=retries)
+                    retrying = True
+                    self.retry_sleep(0.5)
+                    continue
+                return ProcessResult(Outcome.ERROR, reason=error.code, model_attempts=calls, model_retries=retries)
             except (ValueError, OSError):
-                return ProcessResult(Outcome.ERROR, reason='prompt_or_chat_configuration', model_attempts=attempt)
+                return ProcessResult(Outcome.ERROR, reason='prompt_or_chat_configuration', model_attempts=calls, model_retries=retries)
             return ProcessResult(Outcome.ANSWERED if answer else Outcome.IGNORED, answer,
-                                 reason=None if answer else 'model_silent', model_attempts=attempt,
-                                 meme_id=generated.meme_id)
+                                 reason=None if answer else 'model_silent', model_attempts=calls,
+                                 meme_id=generated.meme_id, model_retries=retries)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         self.chat.record_reply(message, text)

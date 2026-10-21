@@ -8,6 +8,7 @@ from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from wechat_ai_bridge.weather.planning import validate_plan
 
 
 _MAX_RESPONSE_BYTES = 1024 * 1024
@@ -72,6 +73,37 @@ class ChatCompletionsClient:
 
     def complete_json(self, messages: list[dict[str, str]]) -> str:
         return self._complete(messages, json_mode=True)
+
+    def complete_weather(self, messages: list[dict[str, str]]) -> dict:
+        """Extract a single bounded weather plan, without JSON Output mode."""
+        payload = self._payload(messages)
+        payload['tools'] = [{'type': 'function', 'function': {
+            'name': 'plan_weather', 'description': '只规划当前成员的天气查询；城市不明先澄清，普通闲聊不查询。',
+            'parameters': {'type': 'object', 'additionalProperties': False,
+                'properties': {
+                    'action': {'type': 'string', 'enum': ['query', 'clarify', 'none', 'unsupported']},
+                    'city': {'type': 'string', 'description': '用户明确给出的城市，可用逗号加省份或国家限定；未知填空字符串。'},
+                    'start_date': {'type': 'string', 'description': '预报起始日期 YYYY-MM-DD；当前天气填空字符串。'},
+                    'days': {'type': 'integer', 'minimum': 1, 'maximum': 7}},
+                'required': ['action', 'city', 'start_date', 'days']}}}]
+        payload['tool_choice'] = {'type': 'function', 'function': {'name': 'plan_weather'}}
+        choice = self._choice(self._post(payload))
+        self._check_finish(choice['finish_reason'], allow_tool_calls=True)
+        message = choice.get('message')
+        calls = message.get('tool_calls') if isinstance(message, dict) else None
+        if not isinstance(calls, list) or len(calls) != 1 or not isinstance(calls[0], dict):
+            raise ModelError(code='model_response_invalid')
+        function = calls[0].get('function')
+        if (calls[0].get('type') != 'function' or not isinstance(function, dict)
+                or function.get('name') != 'plan_weather' or not isinstance(function.get('arguments'), str)):
+            raise ModelError(code='model_response_invalid')
+        arguments = function['arguments']
+        if len(arguments.encode('utf-8')) > 64*1024:
+            raise ModelError(code='model_response_too_large')
+        try:
+            return validate_plan(json.loads(arguments))
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise ModelError(code='model_response_json_invalid') from None
 
     def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=()) -> str:
         """Return a JSON decision from a forced tool call.
