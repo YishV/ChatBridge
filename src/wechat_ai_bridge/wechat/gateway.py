@@ -191,12 +191,14 @@ class NativeSender:
 
 
 class GatewayRunner:
-    def __init__(self, reader, native, service, store, account_id: str, groups: frozenset[str], *, clock=time.time):
+    def __init__(self, reader, native, service, store, account_id: str, groups: frozenset[str], *, clock=time.time,
+                 image_inbox=None):
         self.reader, self.native, self.service, self.store = reader, native, service, store
         self.account_id, self.groups = account_id, groups
         self.cursors: dict[str, dict[str, int]] = {}
         self.clock = clock
         self.started_at = 0.0
+        self.image_inbox = image_inbox
 
     def initialize(self):
         self.native.health()
@@ -208,9 +210,12 @@ class GatewayRunner:
         active = {group for group in self.groups if self.store.is_allowed(group)}
         for removed in set(self.cursors) - active:
             del self.cursors[removed]
+            if self.image_inbox is not None:
+                self.image_inbox.clear_group(removed)
         counts = {"received": 0, "confirmed": 0, "unconfirmed": 0, "modelErrors": 0, "rateLimited": 0,
                   "deferred": 0, "naturalEvaluated": 0, "silent": 0, "modelErrorCodes": [], "patReceived": 0,
-                  'modelRetries': 0, 'mediaConfirmed': 0, 'mediaUnconfirmed': 0, 'mediaErrorCodes': []}
+                  'modelRetries': 0, 'mediaConfirmed': 0, 'mediaUnconfirmed': 0, 'mediaErrorCodes': [],
+                  'imagesObserved': 0}
 
         def record_result(result, *, natural=False):
             if result.media_delivery == DeliveryOutcome.CONFIRMED:
@@ -248,14 +253,26 @@ class GatewayRunner:
             for row in self.reader.read_after(group, cursors):
                 if row.shard in blocked:
                     continue
-                if (row.local_type in (1, PAT_TYPE) and row.sender_id != self.account_id and row.server_id <= 0
-                        and row.create_time >= self.started_at - 30):
+                pending_types = (1, PAT_TYPE, 3, (8 << 32) | 49) if self.image_inbox is not None else (1, PAT_TYPE)
+                pending_cutoff = (self.started_at if self.image_inbox is not None
+                                  and row.local_type in (3, (8 << 32) | 49) else self.started_at - 30)
+                if (row.local_type in pending_types and row.sender_id != self.account_id and row.server_id <= 0
+                        and row.create_time >= pending_cutoff):
                     blocked.add(row.shard)
                     continue
                 # Advance before handling: delivery state provides persistent
                 # at-most-once processing if a model or receipt operation fails.
                 cursors[row.shard] = max(cursors.get(row.shard, 0), row.local_id)
                 if row.create_time < self.started_at - 30:
+                    continue
+                if self.image_inbox is not None and row.local_type in (3, 47, (8 << 32) | 49):
+                    # Media has no startup grace period: never select a delayed
+                    # row created before this process started as a fresh image.
+                    if row.create_time < self.started_at:
+                        continue
+                    if self.image_inbox.observe(group, row):
+                        counts['imagesObserved'] += 1
+                        self.service.console.image_received(group, row.sender_id)
                     continue
                 mapper = native_group_pat if row.local_type == PAT_TYPE else native_group_message
                 raw = mapper(account_id=self.account_id, group_id=group, sender_id=row.sender_id,

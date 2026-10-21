@@ -37,8 +37,13 @@ class Settings:
     weather_enabled: bool = True
     weather_timeout_seconds: float = 5
     weather_cache_seconds: int = 600
+    vision_enabled: bool = True
+    vision_window_seconds: int = 120
 
     def __post_init__(self):
+        if (type(self.vision_enabled) is not bool or type(self.vision_window_seconds) is not int
+                or not 30 <= self.vision_window_seconds <= 300):
+            raise ValueError('看图开关或关联时间窗口无效')
         if (type(self.weather_enabled) is not bool or isinstance(self.weather_timeout_seconds, bool)
                 or not isinstance(self.weather_timeout_seconds, (int, float))
                 or not math.isfinite(self.weather_timeout_seconds) or not 1 <= self.weather_timeout_seconds <= 30
@@ -66,6 +71,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv(override=False, encoding="utf-8-sig")
+        vision_enabled = os.getenv('WECHAT_AI_BRIDGE_VISION_ENABLED', 'true').strip().lower()
+        if vision_enabled not in ('true', 'false', '1', '0'):
+            raise ValueError('看图开关必须为 true 或 false')
         weather_enabled = os.getenv('WECHAT_AI_BRIDGE_WEATHER_ENABLED', 'true').strip().lower()
         if weather_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('天气开关必须为 true 或 false')
@@ -112,6 +120,8 @@ class Settings:
             weather_enabled=weather_enabled in ('true', '1'),
             weather_timeout_seconds=float(os.getenv('WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS', '5')),
             weather_cache_seconds=int(os.getenv('WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS', '600')),
+            vision_enabled=vision_enabled in ('true', '1'),
+            vision_window_seconds=int(os.getenv('WECHAT_AI_BRIDGE_VISION_WINDOW_SECONDS', '120')),
         )
         if (result.participation_mode not in ("natural", "mentions")
                 or result.model_thinking not in ("enabled", "disabled")

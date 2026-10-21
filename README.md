@@ -83,6 +83,23 @@ uv run --extra native wechat-ai-bridge memes check
 
 可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
 
+### 明确 @ 看图
+
+沿用现有 DeepSeek `deepseek-flash` 和密钥，无需另配视觉服务。更新后先安装依赖，再自行启动网关：
+
+```powershell
+uv sync --extra native
+uv run --extra native wechat-ai-bridge run
+```
+
+在授权群里先发一张图片，然后在 **120 秒内**从成员列表真正 `@` 机器人，说“看看我刚发的图片”或“这张截图写了什么”。只读取同群、同一发图者的最近一张；手打 `@昵称`、普通发图、询问“你会看图吗”及明确拒绝看图不上传图片。启动前图片、其他群或其他成员的图不会补读。
+
+支持普通图片和图片文件附件（JPEG、PNG、WebP、GIF）；GIF 只识别第一帧，不理解完整动画。微信原生收藏表情暂不支持。若微信尚未缓存原图，或格式无法解码，会明确提示；可在电脑微信打开原图、等待下载后重新发图并 @。
+
+普通发图只在内存登记短时消息引用。明确请求后才核验对应消息并读取本机精确缓存，在内存缩放、去除元信息后发送单张 JPEG 给 DeepSeek；不访问图片里的网址。图片、文件路径和解密信息不写入聊天存档，也不带入后续轮次；只按既有规则保存问题和确认发送的文字回复。图片内容不能改变人设、权限或程序规则。
+
+`.env` 的 `WECHAT_AI_BRIDGE_VISION_ENABLED=true` 控制开关，`WECHAT_AI_BRIDGE_VISION_WINDOW_SECONDS=120` 控制有效期（30～300 秒），修改后重启生效。`run --check` 报告开关和有效期，不读取图片、不调用模型；`ask` 本机模拟不连接微信图片缓存。看图沿用模型配额、有限重试、暂停和群授权规则；读取失败不会猜图。接口格式见 [DeepSeek 视觉文档](https://api-docs.deepseek.com/zh-cn/guides/vision/)。
+
 ### 天气查询
 
 默认接入 [Open-Meteo](https://open-meteo.com/)，个人非商用无需 API 密钥。可在授权群里问“杭州明天要带伞吗”“北京未来七天天气”“上海现在多少度”。原生 `@` 即时处理；不 `@` 时沿用自然参与和消息合并规则，闲聊天气不等于自动播报。
@@ -128,7 +145,7 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 
 ### 参与方式
 
-- 只处理白名单群的新文本，以及群友拍当前机器人的原生拍一拍；忽略私聊、机器人自发消息和未通过接入校验的消息。
+- 只处理白名单群的新文本、明确请求查看的短时图片，以及群友拍当前机器人的原生拍一拍；忽略私聊、机器人自发消息和未通过接入校验的消息。
 - 原生 `@` 进入直接回答分支；手打 `@名字` 仍按普通消息处理。
 - 群友拍机器人时按人设文字回应；拍别人、自拍和手打“拍一拍”不触发此分支。不执行拍回动作，也不把拍一拍后缀当作提示词。
 - 普通消息结合最近群聊判断是否接话，默认克制，不逐句回应。模型决定沉默、返回空回复或坏格式时不发送。
@@ -176,6 +193,7 @@ src/wechat_ai_bridge/
   qa/           通用聊天提示词、群上下文与回复整理
   models/       DeepSeek 模型调用适配
   media/        场景表情素材同步与云端翻唱短样工具
+  vision/       同群同成员的短时图片引用、精确缓存读取与内存解码
   knowledge/    可选资料扩展边界
   state/        白名单、暂停、消息去重与最少操作审计
 data/knowledge/  未来可选资料，不是聊天启动条件

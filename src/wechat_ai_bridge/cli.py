@@ -18,6 +18,8 @@ from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.voice.errors import VoiceError
 from wechat_ai_bridge.weather import WeatherClient, WeatherError
+from wechat_ai_bridge.vision.inbox import VisionInbox
+from wechat_ai_bridge.vision.resolver import NativeImageResolver
 from wechat_ai_bridge.wechat.delivery import DeliveryService
 from wechat_ai_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeClient, NativeSender
 from wechat_ai_bridge.wechat.instance import SingleInstance
@@ -50,7 +52,7 @@ def create_meme_catalog(settings, *, outgoing=None):
     return MemeCatalog(settings.meme_cache_dir, outgoing or Path('state/stickers/outgoing'))
 
 
-def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET):
+def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None):
     identity_path = settings.state_db.with_suffix('.members.key')
     if store.has_chat_history() and not identity_path.is_file():
         raise GatewayError('member_identity_key_missing_for_history')
@@ -63,7 +65,7 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         history_groups=groups, history_limit=settings.history_context_messages,
         meme_catalog=meme_catalog,
         meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
-        weather_client=create_weather_client(settings))
+        weather_client=create_weather_client(settings), vision=vision)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -138,7 +140,10 @@ def run_gateway(args, settings, store):
             voice_sender = create_voice_sender(settings, reader, health.get('pid'))
         except Exception:
             voice_sender = None
-    processor = create_processor(settings, store, history_groups=config.groups, meme_catalog=active_catalog)
+    vision = (VisionInbox(NativeImageResolver(reader, config, health_check=native.health), store,
+        config.account_id, config.groups, window_seconds=settings.vision_window_seconds)
+        if settings.vision_enabled else None)
+    processor = create_processor(settings, store, history_groups=config.groups, meme_catalog=active_catalog, vision=vision)
     processor.chat._load_system_prompt()
     for group in config.groups:
         reader.snapshot(group)
@@ -150,7 +155,8 @@ def run_gateway(args, settings, store):
         'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
         'memeNativeReady': health.get('nativeStickerSend') is True,
         'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None,
-        'weatherEnabled': settings.weather_enabled, 'weatherCacheSeconds': settings.weather_cache_seconds}
+        'weatherEnabled': settings.weather_enabled, 'weatherCacheSeconds': settings.weather_cache_seconds,
+        'visionEnabled': settings.vision_enabled, 'visionWindowSeconds': settings.vision_window_seconds}
     if args.check:
         emit(status)
         return
@@ -170,13 +176,13 @@ def run_gateway(args, settings, store):
             console.notice('未加载表情素材，继续文字聊天；可在另一终端执行 memes sync 后重启网关')
         elif settings.memes_enabled and not status['memeNativeReady']:
             console.notice('本机组件暂不支持表情发送，继续文字聊天')
-        runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups)
+        runner = GatewayRunner(reader, native, service, store, config.account_id, config.groups, image_inbox=vision)
         runner.initialize()
         console.notice("网关已启动：收到消息和发送结果会实时打印到终端，不写入日志文件")
         emit({"status": "running", **status, "historyReplied": False})
         while True:
             counts = runner.tick()
-            if counts["received"] or counts["naturalEvaluated"] or args.once:
+            if counts["received"] or counts["naturalEvaluated"] or counts['imagesObserved'] or args.once:
                 emit(counts)
             if args.once:
                 return

@@ -1,6 +1,8 @@
 """OpenAI-compatible Chat Completions adapter for DeepSeek or approved hosts."""
 
 import ipaddress
+import base64
+import io
 import json
 import math
 import re
@@ -73,6 +75,30 @@ class ChatCompletionsClient:
 
     def complete_json(self, messages: list[dict[str, str]]) -> str:
         return self._complete(messages, json_mode=True)
+
+    def complete_vision(self, messages, *, image) -> str:
+        """Attach one normalized in-memory image to the current user turn only."""
+        from PIL import Image
+        from wechat_ai_bridge.vision.media import VisionImage, MAX_OUTPUT_BYTES, MAX_OUTPUT_SIDE
+        if (not isinstance(image, VisionImage) or image.mime != 'image/jpeg'
+                or not isinstance(image.data, bytes) or not 1 <= len(image.data) <= MAX_OUTPUT_BYTES
+                or not messages or messages[-1].get('role') != 'user'
+                or not isinstance(messages[-1].get('content'), str)):
+            raise ValueError('vision_input_invalid')
+        try:
+            with Image.open(io.BytesIO(image.data)) as probe:
+                if (probe.format != 'JPEG' or probe.size != (image.width, image.height)
+                        or min(probe.size) < 1 or max(probe.size) > MAX_OUTPUT_SIDE):
+                    raise ValueError()
+                probe.verify()
+        except (OSError, ValueError, SyntaxError):
+            raise ValueError('vision_input_invalid') from None
+        prepared = [dict(item) for item in messages]
+        prepared[-1]['content'] = [
+            {'type': 'text', 'text': prepared[-1]['content']},
+            {'type': 'image_url', 'image_url': {
+                'url': 'data:image/jpeg;base64,' + base64.b64encode(image.data).decode('ascii')}}]
+        return self._complete(prepared, json_mode=False)
 
     def complete_weather(self, messages: list[dict[str, str]]) -> dict:
         """Extract a single bounded weather plan, without JSON Output mode."""

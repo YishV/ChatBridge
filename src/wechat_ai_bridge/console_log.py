@@ -75,6 +75,9 @@ class ConsoleLog:
         self._write("收到", group=message.group_id, sender=message.sender_id,
                     kind=kind, id=_short(message.message_id), text=message.text)
 
+    def image_received(self, group_id: str, sender_id: str) -> None:
+        self._write('收到图片', '仅登记消息引用，等待发图者明确 @ 看图', group=group_id, sender=sender_id)
+
     def sent(self, message: IncomingMessage, reply: str, *, confirmed: bool,
              server_message_id: str | None = None, elapsed: float = 0.0) -> None:
         self._write("发送成功" if confirmed else "发送未确认",
@@ -98,6 +101,9 @@ class NullConsole:
         pass
 
     def received(self, message: IncomingMessage) -> None:
+        pass
+
+    def image_received(self, group_id: str, sender_id: str) -> None:
         pass
 
     def sent(self, message: IncomingMessage, reply: str, *, confirmed: bool,
