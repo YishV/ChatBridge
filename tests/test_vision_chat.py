@@ -19,8 +19,11 @@ from wechat_ai_bridge.wechat.reader import NativeRow
 
 
 class Model:
-    def __init__(self):self.calls=[];self.fail_once=False
+    def __init__(self):self.calls=[];self.fail_once=False;self.image_related=False
     def complete(self,messages):self.calls.append(('text',messages));return '普通文字回复'
+    def complete_json(self,messages):
+        self.calls.append(('intent',messages))
+        return '{"use_image":true}' if self.image_related else '{"use_image":false}'
     def complete_vision(self,messages,*,image):
         self.calls.append(('vision',messages))
         if self.fail_once:
@@ -62,6 +65,63 @@ class VisionChatTests(unittest.TestCase):
         self.assertIn('先',result.reply)
         self.assertEqual(result.model_attempts,0)
         self.assertEqual(self.model.calls,[])
+
+    def test_bare_native_mention_after_picture_reads_without_keyword(self):
+        result=self.processor.process(replace(self.message,text='@西奥如\u2005'))
+        self.assertEqual(result.outcome,Outcome.ANSWERED)
+        self.assertEqual([call[0] for call in self.model.calls],['vision'])
+        self.resolver.resolve.assert_called_once()
+
+    def test_related_question_uses_text_only_intent_before_reading_picture(self):
+        self.model.image_related=True
+        classify=self.model.complete_json
+        def text_only(messages):
+            self.resolver.resolve.assert_not_called()
+            return classify(messages)
+        self.model.complete_json=text_only
+        result=self.processor.process(replace(self.message,text='@西奥如\u2005这是什么品种？'))
+        self.assertEqual([call[0] for call in self.model.calls],['intent','vision'])
+        self.assertEqual(result.model_attempts,2)
+        self.assertNotIn('image_url',str(self.model.calls[0][1]))
+        self.assertEqual(self.model.calls[0][1][-1]['content'],'这是什么品种？')
+        self.resolver.resolve.assert_called_once()
+
+    def test_unrelated_mention_never_reads_recent_picture(self):
+        result=self.processor.process(replace(self.message,text='@西奥如\u2005帮我算一下十二乘十三'))
+        self.assertEqual([call[0] for call in self.model.calls],['intent','text'])
+        self.assertEqual(result.model_attempts,2)
+        self.resolver.resolve.assert_not_called()
+
+    def test_no_picture_skips_intent_and_uses_normal_text(self):
+        result=self.processor.process(replace(self.message,sender_id='other',text='@西奥如\u2005'))
+        self.assertEqual([call[0] for call in self.model.calls],['text'])
+        self.resolver.resolve.assert_not_called()
+
+    def test_invalid_intent_never_reads_image_and_falls_back_to_chat(self):
+        for decision in ('{"use_image":"true"}', '{"use_image":true,"extra":1}', 'invalid'):
+            with self.subTest(decision=decision):
+                self.model.complete_json=lambda messages: decision
+                self.chat.generate(replace(self.message,text='这个好看吗？'))
+                self.resolver.resolve.assert_not_called()
+        self.assertTrue(all(kind=='text' for kind,_ in self.model.calls))
+
+    def test_expiry_is_rechecked_after_intent_before_reading_pixels(self):
+        def expired(messages):
+            self.inbox.clock=lambda:1121
+            return '{"use_image":true}'
+        self.model.complete_json=expired
+        result=self.processor.process(replace(self.message,text='这是什么品种？'))
+        self.assertEqual(result.model_attempts,1)
+        self.assertIn('先',result.reply)
+        self.resolver.resolve.assert_not_called()
+
+    def test_intent_and_vision_share_existing_quota(self):
+        self.model.image_related=True
+        self.processor.hourly_quota=1
+        result=self.processor.process(replace(self.message,text='这是什么品种？'))
+        self.assertEqual(result.outcome,Outcome.RATE_LIMITED)
+        self.assertEqual([call[0] for call in self.model.calls],['intent'])
+        self.assertEqual(result.model_attempts,1)
 
     def test_visual_transient_error_uses_existing_bounded_retry(self):
         self.model.fail_once=True

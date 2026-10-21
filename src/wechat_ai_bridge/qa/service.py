@@ -164,7 +164,7 @@ class ChatService:
         guard = guard or (lambda: None)
         prompt = self._load_system_prompt()
         if self.vision is not None:
-            prepared = self.vision.prepare(message, guard=guard)
+            prepared = self.vision.prepare(message, guard=guard, model=self.model, model_call=call)
             if prepared is not None:
                 if prepared.reply is not None:
                     return ChatReply(prepared.reply)
