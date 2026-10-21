@@ -39,9 +39,11 @@ class ProcessResult:
     model_attempts: int = 0
     meme_id: str | None = None
     model_retries: int | None = None
+    voice: bool = False
 
 
 @dataclass(frozen=True)
 class ChatReply:
     reply: str | None = None
     meme_id: str | None = None
+    voice: bool = False

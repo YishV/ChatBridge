@@ -1,6 +1,6 @@
 # wechat-ai-bridge
 
-通用微信群 AI 聊天助手。先打通文字：被微信原生 `@` 时回答，其他消息结合最近群聊择机接话，也可以保持沉默。模型使用 DeepSeek，无需预先准备资料。
+通用群聊 AI 聊天助手。微信侧被原生 `@` 时回答，其他消息结合最近群聊择机接话；另提供实验性的 QQ/NapCat 独立进程和本机 GPT-SoVITS 语音条。模型使用 DeepSeek，无需预先准备资料。
 
 本机持续网关与 DeepSeek 文字聊天已接通：原生 `@` 回复和未 `@` 的自然接话均已由用户收取并核对服务器回执，后台已进入单群试运行。现场结果见 [文字聊天验收](docs/chat-acceptance.md)。`@`/拍一拍已支持免费 Edge TTS 语音条，自然接话仍保持文字；唱歌仍未接入。需求见 [requirements.md](requirements.md)，运行与验收见 [workflow.md](workflow.md)。
 
@@ -134,6 +134,18 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 `voice check` 只检查 Edge TTS、CABLE Input/Output、微信窗口和群名解析，不发送消息；`voice say --group 群ID --text "..."` 才会显式发送一条测试语音。语音发送需要微信窗口前台可见，会短暂占用鼠标和默认麦克风；Edge TTS 需要联网，回复文字会发送到 Microsoft 语音服务。语音准备失败时回退文字；已经开始录音但回执不明时不补发，避免重复。真实群内语音条仍需一次 @ 现场确认。
 
 配置：`WECHAT_AI_BRIDGE_VOICE_ENABLED`、`WECHAT_AI_BRIDGE_VOICE_NAME`（默认 `zh-CN-XiaoxiaoNeural`）、`WECHAT_AI_BRIDGE_VOICE_MAX_CHARS`（默认 120）。`run --check` 会报告 `voiceEnabled` 和 `voiceReady`。完整记录见 [语音条实施记录](docs/plans/2026-10-20-voice-messages.md)。
+
+### QQ（NapCat + GPT-SoVITS，实验）
+
+同一仓库新增了 QQ 进程，和微信进程相互独立：QQ 走 NapCat 的 OneBot 11 HTTP API 发消息、HTTP POST webhook 收事件；语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再交给 NapCat 转成 SILK 语音条。模型可以在 `decide_reply` 里选择 `voice=true`，失败时回退文字。
+
+```powershell
+# 先按 docs/qq-gpt-sovits.md 配好 NapCat、QQ_ALLOWED_GROUPS 和 GPT-SoVITS
+uv run --extra native wechat-ai-bridge qq check
+uv run --extra native wechat-ai-bridge qq run
+```
+
+`qq check` 不发送消息，只检查 OneBot 登录、webhook 端口、群配置、GPT-SoVITS 参考音频；`qq run` 才启动网关。NapCat 个人号有账号风控风险，请只用测试小号；建议本地 webhook 加 `QQ_WEBHOOK_SECRET`，不要把端口暴露到公网。QQ 与微信使用不同的状态库，互不影响。详见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
 
 ## 自然参与与数据边界
 

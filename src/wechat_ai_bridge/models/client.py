@@ -131,7 +131,7 @@ class ChatCompletionsClient:
         except (ValueError, TypeError, UnicodeError, RecursionError):
             raise ModelError(code='model_response_json_invalid') from None
 
-    def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=()) -> str:
+    def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=(), voice_enabled=False) -> str:
         """Return a JSON decision from a forced tool call.
 
         DeepSeek's JSON Output mode can return empty content for this project's
@@ -143,8 +143,10 @@ class ChatCompletionsClient:
                 or any(not isinstance(asset_id, str) or not re.fullmatch(r"[0-9]{3,6}", asset_id)
                        for asset_id in meme_ids)):
             raise ValueError("invalid meme ids")
+        if type(voice_enabled) is not bool:
+            raise ValueError("invalid voice flag")
         payload = self._payload(messages)
-        payload["tools"] = [self._decision_tool(meme_ids)]
+        payload["tools"] = [self._decision_tool(meme_ids, voice_enabled)]
         payload["tool_choice"] = {"type": "function", "function": {"name": "decide_reply"}}
         data = self._post(payload)
         choice = self._choice(data)
@@ -181,6 +183,11 @@ class ChatCompletionsClient:
             cleaned = {"reply": reply}
             if isinstance(meme_id, str):
                 cleaned["meme_id"] = meme_id
+            voice = decision.get("voice")
+            if voice is not None:
+                if type(voice) is not bool:
+                    raise ModelError(code="model_response_invalid")
+                cleaned["voice"] = voice
             return json.dumps(cleaned, ensure_ascii=False)
         content = message.get("content")
         if isinstance(content, str) and content.strip():
@@ -195,7 +202,7 @@ class ChatCompletionsClient:
         raise ModelError(code="model_response_empty")
 
     @staticmethod
-    def _decision_tool(meme_ids):
+    def _decision_tool(meme_ids, voice_enabled=False):
         properties = {
             "reply": {"type": "string",
                       "description": "要发到群里的简短中文回复；决定不接话时填空字符串。"},
@@ -205,11 +212,16 @@ class ChatCompletionsClient:
                 "type": "string", "enum": list(meme_ids),
                 "description": "可选的已注册表情编号；不配图时填空字符串。",
             }
+        if voice_enabled:
+            properties["voice"] = {
+                "type": "boolean",
+                "description": "这条回复是否发成语音条；短、口语、情绪化可用语音，长说明和事实用文字。",
+            }
         return {
             "type": "function",
             "function": {
                 "name": "decide_reply",
-                "description": "决定是否在微信群接话，并可从候选中选择一张静态表情。",
+                "description": "决定是否在当前群接话，并选择文字、表情或语音形式。",
                 "parameters": {
                     "type": "object",
                     "properties": properties,

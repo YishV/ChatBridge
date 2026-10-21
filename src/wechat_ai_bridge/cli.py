@@ -3,6 +3,7 @@
 import argparse
 import json
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from wechat_ai_bridge.console_log import ConsoleLog, NullConsole
@@ -14,6 +15,8 @@ from wechat_ai_bridge.media.kits import CoverError
 from wechat_ai_bridge.media.memes import MemeCatalog, MemeError
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.qa.identity import load_identity_key
+from wechat_ai_bridge.qq import QQGateway, QQSettings, OneBotClient, OneBotError, QQSender
+from wechat_ai_bridge.qq.webhook import QQWebhookServer
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
 from wechat_ai_bridge.voice.errors import VoiceError
@@ -52,7 +55,8 @@ def create_meme_catalog(settings, *, outgoing=None):
     return MemeCatalog(settings.meme_cache_dir, outgoing or Path('state/stickers/outgoing'))
 
 
-def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None):
+def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None,
+                     voice_enabled=False):
     identity_path = settings.state_db.with_suffix('.members.key')
     if store.has_chat_history() and not identity_path.is_file():
         raise GatewayError('member_identity_key_missing_for_history')
@@ -65,7 +69,7 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         history_groups=groups, history_limit=settings.history_context_messages,
         meme_catalog=meme_catalog,
         meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
-        weather_client=create_weather_client(settings), vision=vision)
+        weather_client=create_weather_client(settings), vision=vision, voice_enabled=voice_enabled)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -115,6 +119,74 @@ def run_voice(args, settings, emit):
     emit({'voiceSent': result.confirmed, 'serverMessageId': result.server_message_id})
     if not result.confirmed:
         raise SystemExit(1)
+
+
+def run_qq(args, settings, emit):
+    try:
+        qq = QQSettings.from_env()
+    except ValueError:
+        raise GatewayError('qq_config_invalid') from None
+    if not qq.allowed_groups:
+        raise GatewayError('qq_groups_missing')
+    client = OneBotClient(qq)
+    if args.action == 'check':
+        try:
+            info = client.login_info()
+        except OneBotError as error:
+            emit({'status': 'qq_unavailable', 'error': error.code, 'sent': False})
+            raise SystemExit(1) from None
+        webhook_ok = False
+        probe = QQWebhookServer(qq, lambda event: None)
+        try:
+            probe.start()
+            webhook_ok = True
+        except OSError:
+            pass
+        finally:
+            probe.stop()
+        reference_ok = (not qq.voice_enabled) or qq.gpt_ref_audio.is_file()
+        emit({
+            'qqReady': webhook_ok and reference_ok,
+            'loginReady': info.get('user_id') is not None,
+            'webhookReady': webhook_ok,
+            'webhookPort': qq.webhook_port,
+            'configuredGroups': len(qq.allowed_groups),
+            'voiceEnabled': qq.voice_enabled,
+            'gptReferenceReady': reference_ok,
+            'sent': False,
+        })
+        return
+    store = StateStore(qq.state_db)
+    try:
+        for group in qq.allowed_groups:
+            store.allow_group(group)
+        runtime = replace(settings, state_db=qq.state_db,
+            participation_mode=qq.participation_mode,
+            cooldown_seconds=qq.cooldown_seconds,
+            hourly_quota=qq.hourly_quota,
+            spontaneous_cooldown_seconds=qq.spontaneous_cooldown_seconds,
+            voice_enabled=qq.voice_enabled,
+            voice_max_chars=qq.voice_max_chars)
+        processor = create_processor(runtime, store, history_groups=qq.allowed_groups,
+                                     meme_catalog=None, voice_enabled=qq.voice_enabled)
+        try:
+            sender = QQSender(qq, client=client)
+        except ValueError:
+            raise GatewayError('qq_voice_config_invalid') from None
+        console = NullConsole() if args.quiet_console else ConsoleLog()
+        service = DeliveryService(processor, store, sender, console=console,
+            meme_catalog=None, voice_sender=sender if qq.voice_enabled else None,
+            voice_policy='model')
+        gateway = QQGateway(qq, client, service)
+        with SingleInstance(Path('data/runtime/qq.gateway.lock')):
+            emit({'status': 'qq_started', 'groups': len(qq.allowed_groups),
+                  'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
+            try:
+                gateway.run()
+            except OSError:
+                raise GatewayError('qq_webhook_bind_failed') from None
+    finally:
+        store.close()
 
 
 def run_gateway(args, settings, store):
@@ -208,6 +280,9 @@ def main() -> None:
     voice.add_argument('action', choices=('check', 'say'))
     voice.add_argument('--group', help='say 时的群 ID；必须是已配置群')
     voice.add_argument('--text', help='say 时要朗读的文字')
+    qq = commands.add_parser('qq', help='NapCat/OneBot 11 QQ 网关')
+    qq.add_argument('action', choices=('check', 'run'))
+    qq.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
     run = commands.add_parser("run", help="持续处理已配置白名单群的新消息")
     run.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复，仅输出状态计数')
@@ -233,6 +308,9 @@ def main() -> None:
             return
         if args.command == 'voice':
             run_voice(args, settings, emit)
+            return
+        if args.command == 'qq':
+            run_qq(args, settings, emit)
             return
         if args.command == 'memes':
             catalog = create_meme_catalog(settings)
@@ -291,6 +369,9 @@ def main() -> None:
         raise SystemExit(1) from None
     except GatewayError as error:
         emit({"status": "stopped", "error": str(error)})
+        raise SystemExit(1) from None
+    except OneBotError as error:
+        emit({"status": "qq_unavailable", "error": error.code})
         raise SystemExit(1) from None
     except ModelError as error:
         status = getattr(error.__cause__, "code", None)

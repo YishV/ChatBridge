@@ -120,7 +120,7 @@ class MessageProcessor:
                 return ProcessResult(Outcome.ERROR, reason='prompt_or_chat_configuration', model_attempts=calls, model_retries=retries)
             return ProcessResult(Outcome.ANSWERED if answer else Outcome.IGNORED, answer,
                                  reason=None if answer else 'model_silent', model_attempts=calls,
-                                 meme_id=generated.meme_id, model_retries=retries)
+                                 meme_id=generated.meme_id, voice=generated.voice, model_retries=retries)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         self.chat.record_reply(message, text)

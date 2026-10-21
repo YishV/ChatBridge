@@ -47,10 +47,13 @@ class ChatService:
                  *, prompt_file: Path | None = None, alias_key: bytes | None = None,
                  history_store=None, history_groups=(), history_limit: int = 50,
                  meme_catalog=None, meme_cooldown_seconds: int = 60, meme_recent_count: int = 5,
-                 weather_client=None, vision=None):
+                 weather_client=None, vision=None, voice_enabled: bool = False):
         self.model = model
         self.system_prompt = system_prompt
         self.prompt_file = prompt_file
+        if type(voice_enabled) is not bool:
+            raise ValueError('voice_enabled_invalid')
+        self.voice_enabled = voice_enabled
         self.meme_catalog = meme_catalog
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
@@ -203,6 +206,10 @@ class ChatService:
                          {'history_index': index, 'reply_to': turn.member}
                          for index, turn in enumerate(history) if turn.role == 'assistant']}
         rules = _SYSTEM_RULES
+        if self.voice_enabled:
+            rules = rules.replace(
+                '你目前只能进行文字聊天，不能声称能够唱歌、发送语音或控制电脑。',
+                '你可以用文字回复，也可以在合适时把简短回复发成语音条；不能声称会唱歌、打电话、控制电脑或主动发语音。')
         if self.vision is not None:
             rules = rules.replace('你目前只能进行文字聊天，不能声称能够唱歌、发送语音或控制电脑。',
                 '你能在明确请求时理解本轮附上的一张图片，并用文字回复；没附图时不能猜测图中内容或声称看到了图片。'
@@ -227,7 +234,11 @@ class ChatService:
                 '文字不要声称已发图或已执行其他动作。\n可选表情素材：'
                 + json.dumps([{'id': a.id, 'description': a.description} for a in candidates], ensure_ascii=False))
         decision_method = getattr(self.model, "complete_decision", None)
-        use_decision = vision_image is None and (candidates or not message.is_directed) and callable(decision_method)
+        use_decision = (
+            vision_image is None
+            and callable(decision_method)
+            and (candidates or not message.is_directed or self.voice_enabled)
+        )
         if use_decision:
             if message.interaction == "pat":
                 instruction = ('群友刚刚拍了你，请按人设回应这次互动。'
@@ -240,6 +251,10 @@ class ChatService:
                                '有人等你回应，或你能补充有用信息时接话；纯闲聊可以沉默。'
                                '必须调用 decide_reply 工具：接话时 reply 填简短中文；不接话时 reply 填空字符串。'
                                '默认克制，但不要每句都沉默。')
+            if self.voice_enabled:
+                instruction += ('可选择 voice=true 发成语音条：短句、口语、情绪化回应适合语音；'
+                                '长说明、事实、链接和需要精确阅读的内容用文字。不要每句都用语音，'
+                                '回复为空时 voice 必须为 false。')
             if candidates:
                 instruction += (
                     '可从候选里选一张表情：meme_id 填编号；不配图填空字符串。'
@@ -271,14 +286,17 @@ class ChatService:
             return ChatReply(response.strip()[:800] or None if isinstance(response, str) else None)
         json_method = getattr(self.model, "complete_json", None)
         if use_decision:
-            response = call(decision_method, messages, meme_ids=tuple(asset.id for asset in candidates))
+            decision_kwargs = {'meme_ids': tuple(asset.id for asset in candidates)}
+            if self.voice_enabled:
+                decision_kwargs['voice_enabled'] = True
+            response = call(decision_method, messages, **decision_kwargs)
         elif (candidates or not message.is_directed) and callable(json_method):
             response = call(json_method, messages)
         else:
             response = call(self.model.complete, messages)
         if not isinstance(response, str):
             return ChatReply()
-        if message.is_directed and not candidates:
+        if message.is_directed and not candidates and not self.voice_enabled:
             return ChatReply(response.strip()[:800] or None)
         try:
             data = json.loads(response)
@@ -287,14 +305,17 @@ class ChatService:
             plain = response.strip()
             return ChatReply(plain[:800] if candidates and message.is_directed and plain
                              and not plain.startswith(('{', '[', '```')) else None)
-        allowed = {'reply', 'meme_id'} if candidates else {'reply'}
+        allowed = {'reply', 'meme_id', 'voice'} if self.voice_enabled else (
+            {'reply', 'meme_id'} if candidates else {'reply'})
         if (not isinstance(data, dict) or 'reply' not in data or not set(data) <= allowed
                 or not isinstance(data['reply'], str)):
             return ChatReply()
         text = data['reply'].strip()[:800] or None
         image = data.get('meme_id')
         image = image if text and isinstance(image, str) and image in {a.id for a in candidates} else None
-        return ChatReply(text, image)
+        voice = data.get('voice', False)
+        voice = bool(text and self.voice_enabled and voice is True)
+        return ChatReply(text, image, voice)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         """Only the delivery boundary may confirm an assistant message."""

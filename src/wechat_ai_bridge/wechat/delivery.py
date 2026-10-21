@@ -45,7 +45,9 @@ class DeliveryResult:
 class DeliveryService:
     def __init__(self, processor: MessageProcessor, store: StateStore, sender: GroupSender,
                  *, console=None, meme_catalog=None, meme_cooldown_seconds: int = 60,
-                 meme_recent_count: int = 5, voice_sender=None):
+                 meme_recent_count: int = 5, voice_sender=None, voice_policy: str = 'directed'):
+        if voice_policy not in ('directed', 'model'):
+            raise ValueError('voice_policy_invalid')
         self.processor = processor
         self.store = store
         self.sender = sender
@@ -54,6 +56,7 @@ class DeliveryService:
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
         self.voice_sender = voice_sender
+        self.voice_policy = voice_policy
 
     def handle(self, message: IncomingMessage) -> DeliveryResult:
         # A reply already logs itself as `发送`; its group echo would only add noise.
@@ -79,9 +82,14 @@ class DeliveryService:
         if not self.store.begin_delivery(message.message_id, message.group_id):
             self.console.not_sent(message, processed.reply, "该消息已投递过")
             return DeliveryResult(processed, DeliveryOutcome.NOT_SENT)
-        if self.voice_sender is not None and message.is_directed:
+        if self.voice_sender is not None and self._wants_voice(message, processed):
             return self._deliver_voice(message, processed)
         return self._deliver_text(message, processed)
+
+    def _wants_voice(self, message: IncomingMessage, processed: ProcessResult) -> bool:
+        if self.voice_policy == 'model':
+            return bool(processed.voice)
+        return message.is_directed
 
     def _deliver_voice(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
         started = time.monotonic()

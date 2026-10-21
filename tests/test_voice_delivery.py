@@ -84,6 +84,27 @@ class VoiceDeliveryTests(unittest.TestCase):
         self.sender.send_group_text.assert_called_once()
         self.assertEqual(self.store.load_chat_history('group-a')[-1]['content'], '啊，我在听。')
 
+    def test_model_can_choose_voice_for_directed_reply(self):
+        class DecisionModel(Model):
+            def __init__(self):
+                self.voice_enabled = None
+            def complete_decision(self, messages, **kwargs):
+                self.voice_enabled = kwargs.get('voice_enabled')
+                return '{"reply":"这句想用语音说。","voice":true}'
+
+        model = DecisionModel()
+        chat = ChatService(model, history_store=self.store, alias_key=b'v' * 32, voice_enabled=True)
+        processor = MessageProcessor(self.store, chat, cooldown_seconds=0,
+                                     spontaneous_cooldown_seconds=5, clock=lambda: self.now)
+        service = DeliveryService(processor, self.store, self.sender,
+                                  voice_sender=self.voice, voice_policy='model')
+        message = IncomingMessage('m5', 'group-a', 'human', '在吗', True)
+        result = service.handle(message)
+        self.assertEqual(result.delivery, DeliveryOutcome.CONFIRMED)
+        self.assertEqual(model.voice_enabled, True)
+        self.assertEqual(self.voice.calls, [('group-a', '这句想用语音说。')])
+        self.sender.send_group_text.assert_not_called()
+
 
 class Reader:
     account_id = 'bot'

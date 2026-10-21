@@ -1,0 +1,76 @@
+# QQ 多平台与 GPT-SoVITS 语音接入
+
+## 已确认的取舍
+
+- 同一个仓库，两个独立进程：`run`（微信）和 `qq run`（QQ）；共用人设、模型和聊天核心，不共用登录态和状态库。
+- QQ 走 **NapCat + OneBot 11** 个人测试号；不接 QQ 官方机器人。接受个人号风控风险，只用小号。
+- QQ 收事件用 **HTTP POST webhook**（NapCat HTTP Client），发消息用 NapCat HTTP API；不引入 WebSocket 客户端。
+- GPT-SoVITS 作为**独立本机 HTTP 服务**接入，不进入本项目 Python 3.12 虚拟环境。
+- 模型通过 `decide_reply.voice` 决定文字或语音；语音失败回退文字，状态未知不补发。
+- 用户已有 1 分钟以上授权录音和转写；8GB 显存先 zero-shot 跑通，再训练专属音色。
+
+## 代码结构
+
+```text
+src/wechat_ai_bridge/
+  speech/
+    gpt_sovits.py     本机 /tts 客户端、WAV 校验、回环地址限制
+  qq/
+    config.py         QQ_* 配置
+    events.py         OneBot 事件 → IncomingMessage
+    onebot.py         OneBot HTTP API 客户端，text/record 消息段
+    webhook.py        NapCat HTTP POST webhook，HMAC 校验
+    sender.py         QQ 文本/语音发送
+    gateway.py        事件队列、去重前处理、共享 DeliveryService
+```
+
+微信现有 `VoiceSender` 不参与 QQ；QQ 语音不经过 VB-Cable 或 UI 自动化。
+
+## 行为
+
+```text
+QQ 群消息/拍一拍
+  → webhook → 事件队列 → map_event
+  → MessageProcessor / ChatService（voice_enabled=true）
+  → decide_reply 返回 reply + voice
+  → text: OneBot text 消息段
+  → voice: GPT-SoVITS /tts → WAV → OneBot record → NapCat SILK
+  → OneBot message_id 作为发送回执
+```
+
+- 文字和语音都走 `DeliveryService`；语音使用 `voice_policy=model`，不再按“是否 @”强制语音。
+- 只有 `QQ_ALLOWED_GROUPS` 中的群会被处理；QQ 状态库独立。
+- QQ v1 不支持表情包、看图、真 @ 提醒。
+- webhook 未设置 secret 时只接受本机请求；设置 secret 后校验 `X-Signature` HMAC-SHA256。
+
+## 配置与命令
+
+见 [QQ 接入说明](../qq-gpt-sovits.md) 和 `.env.example` 的 QQ 段。
+
+```powershell
+uv run --extra native wechat-ai-bridge qq check
+uv run --extra native wechat-ai-bridge qq run
+```
+
+## 离线验证
+
+- 新增 GPT-SoVITS 客户端测试：请求体、WAV 校验、回环限制、缺参考音频、坏音频。
+- 新增 QQ 测试：@/拍一拍映射、自身消息过滤、webhook HMAC、OneBot text/record 段、网关 tick、QQ 语音回执。
+- 新增长期语音决策测试：模型选语音、失败回退文字、未确认不补发。
+- 全量离线测试 **394 项通过（2 项平台跳过）**；离线测试用本机假 HTTP 服务，不连接真实 NapCat 或 GPT-SoVITS。
+- `qq check` 已对着假 OneBot API 实测通过（`qqReady=true`）；`qq run` 已实测启动并绑定 webhook，`/health` 返回 200，说明命令和进程骨架可运行。
+
+## 待现场验收
+
+1. 安装 NapCat、登录测试小号、配置 OneBot HTTP + webhook，开启群消息全量接收。
+2. 启动 GPT-SoVITS `api_v2.py`，准备参考音频/prompt，先 zero-shot；训练完成后切模型。
+3. `qq check` 通过后，在测试群发一条普通消息和一条 @ 消息；确认文字、语音条、回执和失败回退。
+4. 训练专属音色：用 1 分钟以上授权录音，按 GPT-SoVITS 官方流程切片、ASR、校对、微调；8GB 显存使用小 batch。
+5. 观察个人号风控和 NapCat 稳定性；不要用主号，不暴露 webhook 到公网。
+
+## 风险
+
+- NapCat 非官方协议，账号可能被风控；本项目不保存 QQ 密码，但无法消除平台风险。
+- GPT-SoVITS 训练/推理依赖 GPU 和独立环境，首次部署周期不可由离线测试替代。
+- QQ 语音条最终由 NapCat 转 SILK；WAV 生成成功不等于群内一定显示语音条，必须现场验收。
+- 个人号语音/聊天内容涉及隐私和授权；参考音频必须有权使用。

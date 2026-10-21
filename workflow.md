@@ -121,3 +121,18 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 | 3 | 聊天音频文件/唱歌 | 尚未接入；Kits 翻唱短样为独立付费候选，不参与当前语音条链路 |
 
 语音条和音频文件是两项能力；生成或发送音频文件不能当作已支持原生语音条。当前自然接话仍保持文字，只有 `@`/拍一拍走语音条。
+
+## 7. QQ（NapCat + GPT-SoVITS，实验）
+
+QQ 是独立进程，不与微信共用登录态或状态库。NapCat 负责 QQ 登录和 OneBot 11；本项目接收 HTTP POST webhook，发送 HTTP API 请求。语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再以 OneBot `record` 消息段交给 NapCat 转 SILK。
+
+```powershell
+uv run --extra native wechat-ai-bridge qq check
+uv run --extra native wechat-ai-bridge qq run
+```
+
+`qq check` 不发送消息；它检查 OneBot 登录、webhook 端口、群数量和参考音频。真实验收需要：测试小号、测试群、NapCat HTTP 服务 + webhook、GPT-SoVITS 服务。详细步骤见 [QQ 接入说明](docs/qq-gpt-sovits.md)。
+
+- QQ 模型通过 `decide_reply.voice` 选择文字或语音；GPT-SoVITS 失败/超时回退文字，发送状态未知不自动重试。
+- NapCat 是个人号非官方协议，存在账号风控；只用测试小号，不暴露 webhook 到公网。
+- 离线测试不能证明 QQ 语音条显示；必须现场确认 NapCat 转 SILK 后的形态。
