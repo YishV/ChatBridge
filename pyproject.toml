@@ -15,6 +15,14 @@ native = [
     "zstandard>=0.25,<0.26",
     "sqlcipher3>=0.6.2,<0.7",
 ]
+voice = [
+    "edge-tts>=7.3,<8",
+    "sounddevice>=0.5,<0.6",
+    "soundfile>=0.14,<0.15",
+    "numpy>=2,<3",
+    "pycaw>=20260921; platform_system == 'Windows'",
+    "pyperclip>=1.8,<2",
+]
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]

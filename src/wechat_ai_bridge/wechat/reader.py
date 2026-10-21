@@ -80,6 +80,47 @@ class EncryptedMessageReader:
             self._sender_names.popitem(last=False)
         return name
 
+    def conversation_display_name(self, group_id: str) -> str | None:
+        """Return a unique group display name suitable for WeChat search.
+
+        Voice sending drives the visible WeChat UI, so an ambiguous display
+        name is rejected rather than risking a message in the wrong chat.
+        """
+        if group_id not in self.groups or not group_id.endswith('@chatroom'):
+            return None
+        directory = self.account_path / 'db_storage/contact'
+        resolved_directory = directory.resolve()
+        path = (directory / 'contact.db').resolve()
+        if not resolved_directory.is_relative_to(self.account_path) or not path.is_relative_to(resolved_directory):
+            return None
+        if not path.is_file():
+            return None
+        try:
+            connection = self._connect(path)
+            try:
+                row = connection.execute(
+                    'SELECT remark, nick_name FROM contact WHERE username=? LIMIT 1', (group_id,)).fetchone()
+                if not row:
+                    return None
+                raw = (row[0] or '').strip() or (row[1] or '').strip()
+                cleaned = ''.join(
+                    ' ' if char.isspace() else char
+                    for char in raw
+                    if char.isspace() or unicodedata.category(char) not in {'Cc', 'Cf'})
+                name = ' '.join(cleaned.split())[:64].strip()
+                if not name:
+                    return None
+                duplicate = connection.execute(
+                    'SELECT COUNT(*) FROM contact WHERE username LIKE ? AND (remark=? OR nick_name=?)',
+                    ('%@chatroom', name, name)).fetchone()[0]
+                if duplicate != 1:
+                    return None
+                return name
+            finally:
+                connection.close()
+        except Exception:
+            return None
+
     def _shards(self):
         directory = self.account_path / "db_storage/message"
         if not directory.is_dir():

@@ -105,7 +105,8 @@ class NativeClient:
                 or data.get("startupState") != "ready" or data.get("integration") != "WeChatAgent-1"
                 or data.get("databaseAccounts") != [self.account_directory]):
             raise GatewayFatalError("native_account_or_version_mismatch")
-        return {"ready": True, "version": "4.1.10.27", 'nativeStickerSend': data.get('nativeStickerSend') is True}
+        return {"ready": True, "version": "4.1.10.27", 'nativeStickerSend': data.get('nativeStickerSend') is True,
+                'pid': pid}
 
     def send_text(self, group_id: str, text: str):
         if group_id not in self.config.groups or not text.strip() or len(text.encode()) > 16000:

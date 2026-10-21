@@ -16,6 +16,7 @@ from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.settings import Settings
 from wechat_ai_bridge.state.store import StateStore
+from wechat_ai_bridge.voice.errors import VoiceError
 from wechat_ai_bridge.wechat.delivery import DeliveryService
 from wechat_ai_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeClient, NativeSender
 from wechat_ai_bridge.wechat.instance import SingleInstance
@@ -61,6 +62,52 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
 
 
+def run_voice(args, settings, emit):
+    from wechat_ai_bridge.voice import create_voice_sender
+    from wechat_ai_bridge.voice.errors import VoiceError
+    from wechat_ai_bridge.wechat.reader import EncryptedMessageReader
+    config = GatewayConfig.load(settings.gateway_config)
+    account, passphrase = config.reader_credentials()
+    reader = EncryptedMessageReader(account, passphrase, config.account_id, config.groups)
+    native = NativeClient(config, account.name,
+        can_send=lambda group: True)
+    health = native.health()
+    sender = create_voice_sender(settings, reader, health.get('pid'))
+    if args.action == 'check':
+        import importlib.util
+        output = False
+        capture = False
+        window = False
+        try:
+            sender.audio._output_device()
+            output = True
+        except Exception:
+            pass
+        try:
+            sender.audio._capture_id()
+            capture = True
+        except Exception:
+            pass
+        try:
+            sender.ui._find()
+            window = True
+        except Exception:
+            pass
+        resolvable = sum(1 for group in config.groups if reader.conversation_display_name(group))
+        emit({'voiceReady': output and capture and window and importlib.util.find_spec('edge_tts') is not None,
+              'edgeTts': importlib.util.find_spec('edge_tts') is not None,
+              'cableOutput': output, 'cableInput': capture, 'windowFound': window,
+              'configuredGroups': len(config.groups), 'resolvableChatNames': resolvable,
+              'voice': settings.voice_name, 'sent': False})
+        return
+    if not args.group or not args.text:
+        raise VoiceError('voice_arguments_missing')
+    result = sender.send_group_voice(args.group, args.text)
+    emit({'voiceSent': result.confirmed, 'serverMessageId': result.server_message_id})
+    if not result.confirmed:
+        raise SystemExit(1)
+
+
 def run_gateway(args, settings, store):
     config = GatewayConfig.load(settings.gateway_config)
     account, passphrase = config.reader_credentials()
@@ -77,6 +124,13 @@ def run_gateway(args, settings, store):
             catalog = None
     # Without native sticker support, do not offer the model an image it cannot send.
     active_catalog = catalog if health.get('nativeStickerSend') is True else None
+    voice_sender = None
+    if settings.voice_enabled:
+        try:
+            from wechat_ai_bridge.voice import create_voice_sender
+            voice_sender = create_voice_sender(settings, reader, health.get('pid'))
+        except Exception:
+            voice_sender = None
     processor = create_processor(settings, store, history_groups=config.groups, meme_catalog=active_catalog)
     processor.chat._load_system_prompt()
     for group in config.groups:
@@ -87,7 +141,8 @@ def run_gateway(args, settings, store):
         "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds,
         'historyRestored': processor.chat.restored_messages, 'historyContextMessages': settings.history_context_messages,
         'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
-        'memeNativeReady': health.get('nativeStickerSend') is True}
+        'memeNativeReady': health.get('nativeStickerSend') is True,
+        'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None}
     if args.check:
         emit(status)
         return
@@ -101,7 +156,8 @@ def run_gateway(args, settings, store):
         service = DeliveryService(processor, store,
             NativeSender(reader, native, store, config.account_id, config.groups), console=console,
             meme_catalog=active_catalog,
-            meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count)
+            meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
+            voice_sender=voice_sender)
         if settings.memes_enabled and not status['memeAssets']:
             console.notice('未加载表情素材，继续文字聊天；可在另一终端执行 memes sync 后重启网关')
         elif settings.memes_enabled and not status['memeNativeReady']:
@@ -132,6 +188,10 @@ def main() -> None:
     ask.add_argument("--message-id", required=True)
     ask.add_argument("--text", required=True)
     ask.add_argument("--mentioned", action="store_true", help="模拟原生 @机器人")
+    voice = commands.add_parser('voice', help='本机语音条检查或显式发送，不进入聊天流程')
+    voice.add_argument('action', choices=('check', 'say'))
+    voice.add_argument('--group', help='say 时的群 ID；必须是已配置群')
+    voice.add_argument('--text', help='say 时要朗读的文字')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
     run = commands.add_parser("run", help="持续处理已配置白名单群的新消息")
     run.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复，仅输出状态计数')
@@ -148,6 +208,9 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        if args.command == 'voice':
+            run_voice(args, settings, emit)
+            return
         if args.command == 'memes':
             catalog = create_meme_catalog(settings)
             if catalog is None:
@@ -196,6 +259,9 @@ def main() -> None:
         raise SystemExit(1) from None
     except MemeError as error:
         emit({'status': 'memes_unavailable', 'error': error.code})
+        raise SystemExit(1) from None
+    except VoiceError as error:
+        emit({'status': 'voice_unavailable', 'error': error.code})
         raise SystemExit(1) from None
     except GatewayError as error:
         emit({"status": "stopped", "error": str(error)})

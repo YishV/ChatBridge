@@ -10,6 +10,7 @@ from wechat_ai_bridge.console_log import NullConsole
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
 from wechat_ai_bridge.message import IncomingMessage, ProcessResult
 from wechat_ai_bridge.state.store import StateStore
+from wechat_ai_bridge.voice.errors import VoiceError
 from wechat_ai_bridge.wechat.errors import GatewayFatalError
 
 
@@ -44,7 +45,7 @@ class DeliveryResult:
 class DeliveryService:
     def __init__(self, processor: MessageProcessor, store: StateStore, sender: GroupSender,
                  *, console=None, meme_catalog=None, meme_cooldown_seconds: int = 60,
-                 meme_recent_count: int = 5):
+                 meme_recent_count: int = 5, voice_sender=None):
         self.processor = processor
         self.store = store
         self.sender = sender
@@ -52,6 +53,7 @@ class DeliveryService:
         self.meme_catalog = meme_catalog
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
+        self.voice_sender = voice_sender
 
     def handle(self, message: IncomingMessage) -> DeliveryResult:
         # A reply already logs itself as `发送`; its group echo would only add noise.
@@ -77,6 +79,42 @@ class DeliveryService:
         if not self.store.begin_delivery(message.message_id, message.group_id):
             self.console.not_sent(message, processed.reply, "该消息已投递过")
             return DeliveryResult(processed, DeliveryOutcome.NOT_SENT)
+        if self.voice_sender is not None and message.is_directed:
+            return self._deliver_voice(message, processed)
+        return self._deliver_text(message, processed)
+
+    def _deliver_voice(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
+        started = time.monotonic()
+        try:
+            result = self.voice_sender.send_group_voice(message.group_id, processed.reply)
+        except VoiceError as error:
+            if error.sent:
+                self.store.finish_delivery(message.message_id, confirmed=False)
+                self.console.not_sent(message, processed.reply, "语音发送状态未知，不自动重发")
+                return DeliveryResult(processed, DeliveryOutcome.UNCONFIRMED)
+            self.console.notice("语音准备失败，改发文字回复")
+            return self._deliver_text(message, processed)
+        except Exception:
+            self.store.finish_delivery(message.message_id, confirmed=False)
+            self.console.not_sent(message, processed.reply, "语音发送失败，状态未知")
+            return DeliveryResult(processed, DeliveryOutcome.UNCONFIRMED)
+        elapsed = time.monotonic() - started
+        history = self.processor.chat.history_entry(message, reply=processed.reply)
+        self.store.finish_delivery(
+            message.message_id, confirmed=result.confirmed,
+            server_message_id=result.server_message_id,
+            **({'chat': history} if history is not None else {}),
+        )
+        delivery = (DeliveryOutcome.CONFIRMED if result.confirmed and result.server_message_id
+                    else DeliveryOutcome.UNCONFIRMED)
+        self.console.sent(message, f"[语音] {processed.reply}",
+                          confirmed=delivery == DeliveryOutcome.CONFIRMED,
+                          server_message_id=result.server_message_id, elapsed=elapsed)
+        if delivery == DeliveryOutcome.CONFIRMED:
+            self.processor.record_reply(message, processed.reply)
+        return DeliveryResult(processed, delivery)
+
+    def _deliver_text(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
         started = time.monotonic()
         try:
             receipt = self.sender.send_group_text(message.group_id, processed.reply)

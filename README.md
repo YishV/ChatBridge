@@ -2,7 +2,7 @@
 
 通用微信群 AI 聊天助手。先打通文字：被微信原生 `@` 时回答，其他消息结合最近群聊择机接话，也可以保持沉默。模型使用 DeepSeek，无需预先准备资料。
 
-本机持续网关与 DeepSeek 文字聊天已接通：原生 `@` 回复和未 `@` 的自然接话均已由用户收取并核对服务器回执，后台已进入单群试运行。现场结果见 [文字聊天验收](docs/chat-acceptance.md)。语音和唱歌尚未接入。需求见 [requirements.md](requirements.md)，运行与验收见 [workflow.md](workflow.md)。
+本机持续网关与 DeepSeek 文字聊天已接通：原生 `@` 回复和未 `@` 的自然接话均已由用户收取并核对服务器回执，后台已进入单群试运行。现场结果见 [文字聊天验收](docs/chat-acceptance.md)。`@`/拍一拍已支持免费 Edge TTS 语音条，自然接话仍保持文字；唱歌仍未接入。需求见 [requirements.md](requirements.md)，运行与验收见 [workflow.md](workflow.md)。
 
 ## 环境与安装
 
@@ -78,10 +78,23 @@ uv run --extra native wechat-ai-bridge memes check
 
 - 每条回复最多一张；只有文字发送并匹配服务器回执后才尝试配图，图片发送状态未知时不重复发送。
 - 每群默认 60 秒图片冷却，最近 5 张不重复；暂停或撤销群授权时配置也会停止。
-- 只支持静态素材；动图、微信原生收藏表情和语音仍未接入。本机组件未报告 `nativeStickerSend` 时不向模型提供配图选项。
+- 只支持静态素材；动图、微信原生收藏表情仍未接入，语音条见下节。本机组件未报告 `nativeStickerSend` 时不向模型提供配图选项。
 - 素材描述来自公开图库，作为数据提供给模型，不能改变系统规则；群聊正文不会发送给图库站点。
 
 可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
+
+### 语音条（仅 @/拍一拍）
+
+被原生 `@` 或拍一拍时，回复会先由免费的 Edge TTS 合成为中文女声，经 VB-Cable 虚拟声卡送入微信，再点微信发送按钮左侧的语音图标录音并发送；自然接话仍保持文字，避免语音刷屏。
+
+```powershell
+uv sync --extra native --extra voice
+uv run --extra native --extra voice wechat-ai-bridge voice check
+```
+
+`voice check` 只检查 Edge TTS、CABLE Input/Output、微信窗口和群名解析，不发送消息；`voice say --group 群ID --text "..."` 才会显式发送一条测试语音。语音发送需要微信窗口前台可见，会短暂占用鼠标和默认麦克风；Edge TTS 需要联网，回复文字会发送到 Microsoft 语音服务。语音准备失败时回退文字；已经开始录音但回执不明时不补发，避免重复。真实群内语音条仍需一次 @ 现场确认。
+
+配置：`WECHAT_AI_BRIDGE_VOICE_ENABLED`、`WECHAT_AI_BRIDGE_VOICE_NAME`（默认 `zh-CN-XiaoxiaoNeural`）、`WECHAT_AI_BRIDGE_VOICE_MAX_CHARS`（默认 120）。`run --check` 会报告 `voiceEnabled` 和 `voiceReady`。完整记录见 [语音条实施记录](docs/plans/2026-10-20-voice-messages.md)。
 
 ## 自然参与与数据边界
 
@@ -130,7 +143,7 @@ git diff --check
 
 离线测试使用虚构消息和模拟模型/网关，不能证明真实微信和 DeepSeek 已联通，见 [测试说明](tests/README.md)。
 
-后续依次推进：文字自由聊天验收 → 语音合成 → 微信原生语音条发送验收 → 唱歌生成与发送。**音频文件和微信原生语音条是两项能力**；生成或发送音频文件不能据此宣称已支持原生语音条或唱歌。
+后续依次推进：文字自由聊天验收 → 表情包现场验收 → 语音条群内验收 → 唱歌生成与音频发送。**音频文件和微信原生语音条是两项能力**；生成或发送音频文件不能据此宣称已支持原生语音条或唱歌。Kits 翻唱为独立付费候选，不参与当前语音条链路。
 
 ## 目录
 
