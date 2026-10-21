@@ -83,9 +83,11 @@ uv run --extra native wechat-ai-bridge memes check
 
 可用 `.env` 的 `WECHAT_AI_BRIDGE_MEMES_ENABLED` 开关，`WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS`、`WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` 调整频率；`run --check` 会报告 `memesEnabled`、`memeAssets` 和 `memeNativeReady`。真实群内图片发送尚待现场验收，离线测试不能替代。
 
-### 语音条（仅 @/拍一拍）
+### 语音条（实验功能，默认关闭）
 
-被原生 `@` 或拍一拍时，回复会先由免费的 Edge TTS 合成为中文女声，经 VB-Cable 虚拟声卡送入微信，再点微信发送按钮左侧的语音图标录音并发送；自然接话仍保持文字，避免语音刷屏。
+当前暂时关闭自动语音条，`.env` 保持 `WECHAT_AI_BRIDGE_VOICE_ENABLED=false`，重启后原生 `@` 和拍一拍也使用文字回复。
+
+只有显式启用语音开关并重启后，被原生 `@` 或拍一拍时，回复才会先由免费的 Edge TTS 合成为中文女声，经 VB-Cable 虚拟声卡送入微信，再点微信发送按钮左侧的语音图标录音并发送；自然接话仍保持文字。
 
 ```powershell
 uv sync --extra native --extra voice
