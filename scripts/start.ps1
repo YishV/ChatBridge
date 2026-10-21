@@ -76,7 +76,7 @@ $env:PYTHONPATH = Join-Path $Root 'src'
 $apiUrl = Get-EnvValue $envMap 'QQ_ONEBOT_API_URL' 'http://127.0.0.1:3000'
 $oneBotToken = Get-EnvValue $envMap 'QQ_ONEBOT_TOKEN'
 $webhookPort = [int](Get-EnvValue $envMap 'QQ_WEBHOOK_PORT' '8081')
-$defaultNapCat = Get-EnvValue $envMap 'NAPCAT_HOME' 'D:\NapCat.Shell'
+$defaultNapCat = Get-EnvValue $envMap 'NAPCAT_HOME' 'D:\workspace\自用\wechat-ai-bridge\tools\NapCat.Shell'
 if (-not $NapCatHome) { $NapCatHome = $defaultNapCat }
 
 function Start-NapCatIfNeeded {
