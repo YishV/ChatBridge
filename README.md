@@ -31,7 +31,7 @@ notepad .env
 ### 推荐：启动脚本
 
 ```powershell
-# QQ：自动尝试拉起 NapCat；语音开启时同时拉起 GPT-SoVITS
+# QQ：自动尝试拉起 NapCat、GPT-SoVITS 和翻唱 worker
 .\scripts\start.ps1 -Target qq
 
 # 微信：只启动微信网关
@@ -39,6 +39,14 @@ notepad .env
 
 # 两个平台各开一个窗口
 .\scripts\start.ps1 -Target all
+```
+
+停止：
+
+```powershell
+.\scripts\stop.ps1 -Target qq
+.\scripts\stop.ps1 -Target wechat
+.\scripts\stop.ps1 -Target all
 ```
 
 NapCat 不在默认路径时：

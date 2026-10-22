@@ -57,7 +57,7 @@ def create_meme_catalog(settings, *, outgoing=None):
 
 
 def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None,
-                     voice_enabled=False):
+                     voice_enabled=False, singing_enabled=False):
     identity_path = settings.state_db.with_suffix('.members.key')
     if store.has_chat_history() and not identity_path.is_file():
         raise GatewayError('member_identity_key_missing_for_history')
@@ -70,7 +70,8 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         history_groups=groups, history_limit=settings.history_context_messages,
         meme_catalog=meme_catalog,
         meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
-        weather_client=create_weather_client(settings), vision=vision, voice_enabled=voice_enabled)
+        weather_client=create_weather_client(settings), vision=vision, voice_enabled=voice_enabled,
+        singing_enabled=singing_enabled)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -184,22 +185,23 @@ def run_qq(args, settings, emit):
             catalog = create_meme_catalog(settings) if settings.memes_enabled else None
         except (MemeError, OSError):
             catalog = None
-        processor = create_processor(runtime, store, history_groups=qq.conversations,
-                                     meme_catalog=catalog, vision=(
-                                         QQVisionInbox(qq.conversations, store,
-                                                       window_seconds=qq.vision_window_seconds)
-                                         if qq.vision_enabled else None),
-                                     voice_enabled=qq.voice_enabled)
-        try:
-            sender = QQSender(qq, client=client)
-        except ValueError:
-            raise GatewayError('qq_voice_config_invalid') from None
-        console = NullConsole() if args.quiet_console else ConsoleLog()
         from wechat_ai_bridge.singing.config import SingingSettings
         from wechat_ai_bridge.singing.coordinator import SingingCoordinator
         from wechat_ai_bridge.singing.library import SongLibrary
         from wechat_ai_bridge.singing.queue import SingingQueue
         singing_settings = SingingSettings.from_env()
+        processor = create_processor(runtime, store, history_groups=qq.conversations,
+                                     meme_catalog=catalog, vision=(
+                                         QQVisionInbox(qq.conversations, store,
+                                                       window_seconds=qq.vision_window_seconds)
+                                         if qq.vision_enabled else None),
+                                     voice_enabled=qq.voice_enabled,
+                                     singing_enabled=singing_settings.enabled)
+        try:
+            sender = QQSender(qq, client=client)
+        except ValueError:
+            raise GatewayError('qq_voice_config_invalid') from None
+        console = NullConsole() if args.quiet_console else ConsoleLog()
         singing = None
         if singing_settings.enabled:
             singing_queue = SingingQueue(singing_settings.queue_db)

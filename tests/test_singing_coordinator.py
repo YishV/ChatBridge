@@ -45,8 +45,8 @@ class SingingCoordinatorTests(unittest.TestCase):
         self.assertTrue(job.song_path.endswith('天空之城.mp3'))
         self.assertIn('开始翻唱《天空之城》', self.sender.texts[0][1])
 
-    def test_group_message_without_mention_is_ignored(self):
-        message = IncomingMessage('m1', '1', '2', '唱首天空之城', False, is_group=True)
+    def test_group_plain_chat_without_mention_is_ignored(self):
+        message = IncomingMessage('m1', '1', '2', '今天唱歌吗', False, is_group=True)
         self.assertFalse(self.coordinator.handle(message))
         self.assertEqual(self.sender.texts, [])
 

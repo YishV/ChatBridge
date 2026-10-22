@@ -47,13 +47,17 @@ class ChatService:
                  *, prompt_file: Path | None = None, alias_key: bytes | None = None,
                  history_store=None, history_groups=(), history_limit: int = 50,
                  meme_catalog=None, meme_cooldown_seconds: int = 60, meme_recent_count: int = 5,
-                 weather_client=None, vision=None, voice_enabled: bool = False):
+                 weather_client=None, vision=None, voice_enabled: bool = False,
+                 singing_enabled: bool = False):
         self.model = model
         self.system_prompt = system_prompt
         self.prompt_file = prompt_file
         if type(voice_enabled) is not bool:
             raise ValueError('voice_enabled_invalid')
+        if type(singing_enabled) is not bool:
+            raise ValueError('singing_enabled_invalid')
         self.voice_enabled = voice_enabled
+        self.singing_enabled = singing_enabled
         self.meme_catalog = meme_catalog
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
@@ -221,6 +225,17 @@ class ChatService:
                 '你可以在文字回复后附带一张候选静态表情图，但不能声称已经发送；不能声称能够唱歌、发送语音或控制电脑。')
             if not candidates:
                 rules += '本轮因冷却、避重或没有合适素材不配图，只用文字回应，不要承诺立即发图。'
+        if self.singing_enabled:
+            rules = rules.replace(
+                '你目前只能进行文字聊天，不能声称能够唱歌、发送语音或控制电脑。',
+                '你不能实时清唱，但可以接受点歌并生成翻唱成品；不要直接说“唱不了”。')
+            rules = rules.replace(
+                '不能声称会唱歌、打电话、控制电脑或主动发语音。',
+                '不能声称自己实时清唱，但可以接受点歌并生成翻唱成品；不要主动发语音或控制电脑。')
+            rules = rules.replace(
+                '不能声称能够唱歌、发送语音或控制电脑。',
+                '不能声称自己实时清唱；可以接受点歌并生成翻唱成品。')
+            rules += '用户明确点歌时，说明会安排翻唱，不要回答“唱不了”。'
         if candidates:
             instruction = (
                 '本条为拍一拍，请按人设回应。' if message.interaction == 'pat' else

@@ -104,15 +104,34 @@ QQ 语音开启时，脚本会在 9880 未监听的情况下用独立窗口启�
 
 ## 4. 停止与重启
 
-前台进程直接 `Ctrl+C`。后台/卡住时：
+推荐用停止脚本，不要无条件结束所有 `python.exe`：
+
+```powershell
+# 停止 QQ 网关、翻唱 worker、GPT-SoVITS、NapCat
+.\scripts\stop.ps1 -Target qq
+
+# 只停止微信网关
+.\scripts\stop.ps1 -Target wechat
+
+# 只停止翻唱 worker
+.\scripts\stop.ps1 -Target singing
+
+# 两边都停
+.\scripts\stop.ps1 -Target all
+```
+
+脚本按命令行和端口匹配，不会结束无关的 Python 进程；停止后会打印 3000/8081/9880 是否释放。
+
+前台进程也可以直接 `Ctrl+C`。后台/卡住时排查：
 
 ```powershell
 # 查看端口占用
 netstat -ano | findstr :8081
 netstat -ano | findstr :3000
+netstat -ano | findstr :9880
 ```
 
-只停止本项目进程，不要无条件结束所有 `python.exe`。`qq run` 有单实例锁；再次启动报 `gateway_already_running` 时，先停掉旧进程。
+`qq run` 有单实例锁；再次启动报 `gateway_already_running` 时，先运行 `stop.ps1 -Target qq`。
 
 修改 `.env`、`gateway.json`、`config/persona.md`：
 
