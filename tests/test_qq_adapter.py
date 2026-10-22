@@ -39,6 +39,8 @@ class OneBotServer:
                     data = [{'group_id': 123, 'group_name': '测试群'}]
                 elif action == 'get_friend_list':
                     data = [{'user_id': 456, 'nickname': '好友'}]
+                elif action in ('upload_group_file', 'upload_private_file'):
+                    data = {'file_id': 'f1'}
                 payload = {'status': 'ok', 'retcode': 0, 'data': data}
                 raw = json.dumps(payload).encode()
                 self.send_response(200)
@@ -200,6 +202,17 @@ class OneBotClientTests(unittest.TestCase):
             image_segment = server.calls[2][1]['message'][0]
             self.assertEqual(image_segment['type'], 'image')
             self.assertTrue(image_segment['data']['file'].startswith('file://'))
+
+    def test_uploads_group_and_private_files(self):
+        with TemporaryDirectory() as temp, OneBotServer() as server:
+            path = Path(temp) / 'cover.mp3'
+            path.write_bytes(b'ID3')
+            client = OneBotClient(QQSettings(api_url=server.url))
+            self.assertEqual(client.upload_group_file('123', path, 'cover.mp3'), 'f1')
+            self.assertEqual(client.upload_private_file('456', path, 'cover.mp3'), 'f1')
+            self.assertEqual(server.calls[0][1]['group_id'], 123)
+            self.assertEqual(server.calls[1][1]['user_id'], 456)
+            self.assertEqual(server.calls[0][1]['name'], 'cover.mp3')
 
     def test_action_error_is_not_a_receipt(self):
         class FailClient(OneBotClient):

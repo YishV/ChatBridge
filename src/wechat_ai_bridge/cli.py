@@ -169,6 +169,7 @@ def run_qq(args, settings, emit):
         })
         return
     store = StateStore(qq.state_db)
+    singing_queue = None
     try:
         for conversation in qq.conversations:
             store.allow_group(conversation)
@@ -194,6 +195,18 @@ def run_qq(args, settings, emit):
         except ValueError:
             raise GatewayError('qq_voice_config_invalid') from None
         console = NullConsole() if args.quiet_console else ConsoleLog()
+        from wechat_ai_bridge.singing.config import SingingSettings
+        from wechat_ai_bridge.singing.coordinator import SingingCoordinator
+        from wechat_ai_bridge.singing.library import SongLibrary
+        from wechat_ai_bridge.singing.queue import SingingQueue
+        singing_settings = SingingSettings.from_env()
+        singing = None
+        if singing_settings.enabled:
+            singing_queue = SingingQueue(singing_settings.queue_db)
+            singing = SingingCoordinator(
+                singing_settings, SongLibrary(singing_settings.music_dir),
+                singing_queue, sender,
+            )
         service = DeliveryService(processor, store, sender, console=console,
             meme_catalog=catalog,
             meme_cooldown_seconds=settings.meme_cooldown_seconds,
@@ -201,16 +214,20 @@ def run_qq(args, settings, emit):
             voice_sender=sender if qq.voice_enabled else None,
             voice_policy='model')
         gateway = QQGateway(qq, client, service,
-                            vision=processor.chat.vision if qq.vision_enabled else None)
+                            vision=processor.chat.vision if qq.vision_enabled else None,
+                            singing=singing)
         with SingleInstance(Path('data/runtime/qq.gateway.lock')):
             emit({'status': 'qq_started', 'groups': len(qq.allowed_groups),
                   'privates': len(qq.private_users), 'memeAssets': len(catalog.assets) if catalog else 0,
+                  'singingEnabled': singing is not None,
                   'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
             try:
                 gateway.run()
             except OSError:
                 raise GatewayError('qq_webhook_bind_failed') from None
     finally:
+        if singing_queue is not None:
+            singing_queue.close()
         store.close()
 
 
@@ -312,6 +329,8 @@ def main() -> None:
     qq = commands.add_parser('qq', help='NapCat/OneBot 11 QQ 网关')
     qq.add_argument('action', choices=('check', 'run', 'groups', 'friends'))
     qq.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复')
+    singing_worker = commands.add_parser('singing-worker', help='消费曲库翻唱队列')
+    singing_worker.add_argument('--once', action='store_true', help='只处理一个任务')
     contacts = commands.add_parser('contacts', help='本机列出微信联系人 wxid，用于私聊白名单')
     contacts.add_argument('--query', help='按 wxid、备注或昵称过滤')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
@@ -330,6 +349,28 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        if args.command == 'singing-worker':
+            from wechat_ai_bridge.singing.config import SingingSettings
+            from wechat_ai_bridge.singing.queue import SingingQueue
+            from wechat_ai_bridge.singing.renderer import CoverRenderer
+            from wechat_ai_bridge.singing.worker import SingingWorker
+            from wechat_ai_bridge.qq.config import QQSettings
+            from wechat_ai_bridge.qq.sender import QQSender
+            singing = SingingSettings.from_env()
+            if not singing.enabled:
+                raise GatewayError('singing_disabled')
+            queue = SingingQueue(singing.queue_db)
+            try:
+                worker = SingingWorker(
+                    singing, queue, CoverRenderer(singing), QQSender(QQSettings.from_env())
+                )
+                if args.once:
+                    worker.run_once()
+                else:
+                    worker.run_forever()
+            finally:
+                queue.close()
+            return
         if args.command == 'contacts':
             config = GatewayConfig.load(settings.gateway_config)
             account, passphrase = config.reader_credentials()

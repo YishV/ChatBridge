@@ -70,14 +70,16 @@ uv run --extra native wechat-ai-bridge qq run
 - [架构](docs/architecture.md)：进程、分层、数据流
 - [完成度与后续建议](docs/roadmap.md)
 - [QQ 接入说明](docs/qq-gpt-sovits.md)
+- [曲库翻唱](docs/singing-library.md)
 - [文字聊天验收](docs/chat-acceptance.md)
 - [需求](requirements.md) / [验收流程](workflow.md)
 
 ## 运行时
 
 ```text
-wechat-ai-bridge run       微信网关
-wechat-ai-bridge qq run    QQ 网关
+wechat-ai-bridge run            微信网关
+wechat-ai-bridge qq run         QQ 网关
+wechat-ai-bridge singing-worker 曲库翻唱 worker
 ```
 
 - 微信状态库：`data/runtime/chat-state.sqlite3`

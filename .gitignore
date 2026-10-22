@@ -16,10 +16,13 @@ build/
 
 logs/
 data/runtime/
+data/music/*
+!data/music/README.md
 state/stickers/outgoing/
 /tools/NapCat.Shell/
 
 # Optional local inference stack: cloned source, downloaded packages, model weights
 tools/GPT-SoVITS/
 tools/GPT-SoVITS-*/
+tools/RVC/
 tools/*.7z

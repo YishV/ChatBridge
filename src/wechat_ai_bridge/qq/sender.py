@@ -51,6 +51,27 @@ class QQSender:
             return SendReceipt(False)
         return SendReceipt(True, message_id)
 
+    def send_group_file(self, conversation_id: str, path: Path,
+                        name: str | None = None) -> SendReceipt:
+        try:
+            private = self._private_user(conversation_id)
+            file_id = (self.client.upload_private_file(private, path, name)
+                       if private is not None
+                       else self.client.upload_group_file(conversation_id, path, name))
+        except OneBotError:
+            return SendReceipt(False)
+        return SendReceipt(True, file_id)
+
+    def send_voice_file(self, conversation_id: str, path: Path) -> VoiceSendResult:
+        try:
+            private = self._private_user(conversation_id)
+            message_id = (self.client.send_private_record(private, path)
+                          if private is not None
+                          else self.client.send_group_record(conversation_id, path))
+        except OneBotError as exc:
+            raise VoiceError('qq_voice_unconfirmed', sent=True) from exc
+        return VoiceSendResult(True, message_id)
+
     def send_group_voice(self, group_id: str, text: str) -> VoiceSendResult:
         if not self.settings.voice_enabled or self.speech is None:
             raise VoiceError('qq_voice_disabled')

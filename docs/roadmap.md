@@ -16,9 +16,10 @@
 | QQ 天气 | 已现场验证 |
 | QQ 看图 | 公网测试图已验证，真实 QQ 图片待确认 |
 | QQ 语音条 | 已现场确认；专属音色训练完成（SoVITS e12 / GPT e10），待试听和换权重后的语音条确认 |
-| 启动脚本 | `scripts/start.ps1`，可选拉起 NapCat 和 GPT-SoVITS |
-| 测试 | 403 项离线测试通过（2 项跳过） |
-| 文档 | 运行、配置、架构、QQ/GPT-SoVITS 接入 |
+| QQ 曲库翻唱 | 已实现曲库扫描、点歌解析、队列、RVC worker、MP3/语音条回传；真实 QQ 点歌待验收 |
+| 启动脚本 | `scripts/start.ps1`，可选拉起 NapCat、GPT-SoVITS 和翻唱 worker |
+| 测试 | 426 项离线测试通过（1 项平台跳过） |
+| 文档 | 运行、配置、架构、QQ/GPT-SoVITS、曲库翻唱 |
 
 ## 未完成
 

@@ -10,11 +10,12 @@ from wechat_ai_bridge.qq.webhook import QQWebhookServer
 
 
 class QQGateway:
-    def __init__(self, settings: QQSettings, client, service, *, self_id=None, vision=None):
+    def __init__(self, settings: QQSettings, client, service, *, self_id=None, vision=None, singing=None):
         self.settings = settings
         self.client = client
         self.service = service
         self.vision = vision
+        self.singing = singing
         self.self_id = str(self_id) if self_id is not None else None
         self.events = queue.Queue(maxsize=1000)
         self.webhook = QQWebhookServer(settings, self._enqueue)
@@ -49,6 +50,14 @@ class QQGateway:
                 continue
             if not self.settings.conversations or message.group_id not in self.settings.conversations:
                 continue
+            if self.singing is not None:
+                try:
+                    if self.singing.handle(message):
+                        received += 1 if not message.is_from_bot else 0
+                        continue
+                except Exception:
+                    self.errors += 1
+                    continue
             try:
                 result = self.service.handle(message)
             except Exception:

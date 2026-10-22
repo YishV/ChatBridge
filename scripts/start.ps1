@@ -146,6 +146,16 @@ function Start-NapCatIfNeeded {
     throw "NapCat OneBot API 在 $NapCatTimeoutSeconds 秒内未就绪；请登录 NapCat 后重新运行。"
 }
 
+function Start-SingingWorker {
+    $enabled = (Get-EnvValue $envMap 'SINGING_ENABLED' 'false').ToLower() -eq 'true'
+    if (-not $enabled) { return }
+    Write-Step '启动翻唱 worker（独立窗口）'
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+        '-NoExit', '-ExecutionPolicy', 'Bypass', '-File',
+        (Join-Path $Root 'scripts\start-singing-worker.ps1')
+    ) -WorkingDirectory $Root
+}
+
 function Start-QQ {
     if (Get-NetTCPConnection -State Listen -LocalPort $webhookPort -ErrorAction SilentlyContinue) {
         Write-Warning "端口 $webhookPort 已有监听，QQ 网关可能已经启动。"
@@ -153,6 +163,7 @@ function Start-QQ {
     }
     Start-GptSoVits
     Start-NapCatIfNeeded
+    Start-SingingWorker
     Write-Step '启动 QQ 网关；按 Ctrl+C 停止'
     & $python -m wechat_ai_bridge qq run
 }

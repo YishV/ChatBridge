@@ -116,6 +116,40 @@ class OneBotClient:
             group_id, [{'type': 'image', 'data': {'file': path.as_uri()}}]
         )
 
+    @staticmethod
+    def _file(path: Path, name: str | None) -> tuple[Path, str]:
+        path = Path(path).resolve()
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise OneBotError('onebot_file_missing')
+        if path.stat().st_size > 30 * 1024 * 1024:
+            raise OneBotError('onebot_file_too_large')
+        filename = name or path.name
+        if not isinstance(filename, str) or not filename or len(filename) > 128:
+            raise OneBotError('onebot_file_name_invalid')
+        return path, filename
+
+    def upload_group_file(self, group_id: str, path: Path, name: str | None = None) -> str:
+        if not isinstance(group_id, str) or not group_id or len(group_id) > 64:
+            raise OneBotError('onebot_group_invalid')
+        file_path, filename = self._file(path, name)
+        data = self.call('upload_group_file', {
+            'group_id': int(group_id) if group_id.isdigit() else group_id,
+            'file': str(file_path), 'name': filename,
+        })
+        result = data.get('data')
+        return str(result.get('file_id')) if isinstance(result, dict) else 'uploaded'
+
+    def upload_private_file(self, user_id: str, path: Path, name: str | None = None) -> str:
+        if not isinstance(user_id, str) or not user_id or len(user_id) > 64:
+            raise OneBotError('onebot_user_invalid')
+        file_path, filename = self._file(path, name)
+        data = self.call('upload_private_file', {
+            'user_id': int(user_id) if user_id.isdigit() else user_id,
+            'file': str(file_path), 'name': filename,
+        })
+        result = data.get('data')
+        return str(result.get('file_id')) if isinstance(result, dict) else 'uploaded'
+
     def send_private_message(self, user_id: str, message: list[dict]) -> str:
         if not isinstance(user_id, str) or not user_id or len(user_id) > 64:
             raise OneBotError('onebot_user_invalid')
