@@ -63,6 +63,7 @@ uv run --extra native wechat-ai-bridge qq run
 - QQ 文字已现场验证：测试群消息经 NapCat webhook 进入，模型生成回复后通过 OneBot 文字消息发送成功并获得 `message_id` 回执。天气查询也已现场返回 Open-Meteo 实时结果；看图用公网测试图经 webhook 验证；表情包 083 也已现场发送成功并获得 `message_id`。
 - 私聊也已完成实际发送验证：测试好友消息经 webhook 进入，回复走 `send_private_msg` 并取得回执。
 - 语音条已实际发送并现场确认：v2 整合包 zero-shot `/tts` 成功，私聊和测试群各发出一次 record，均取得 `message_id`，客户端显示为语音条。
+- 专属音色训练完成：SoVITS 12 epoch（`da_fei_yu_e12_s372.pth`）、GPT 10 epoch（`da_fei_yu-e10.ckpt`）；API 已加载新权重并生成 `trained.wav`。训练使用大肥鱼数据集 56 条音频，CC BY-NC 4.0，仅非商业使用。
 
 ## 待现场验收
 

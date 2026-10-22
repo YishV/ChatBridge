@@ -15,8 +15,8 @@
 | QQ 表情包 | 已现场发送验证 |
 | QQ 天气 | 已现场验证 |
 | QQ 看图 | 公网测试图已验证，真实 QQ 图片待确认 |
-| QQ 语音条 | 已现场确认：zero-shot `/tts` 合成，群/私聊均显示为语音条；专属音色训练待做 |
-| 启动脚本 | `scripts/start.ps1`，可选拉起 NapCat |
+| QQ 语音条 | 已现场确认；专属音色训练完成（SoVITS e12 / GPT e10），待试听和换权重后的语音条确认 |
+| 启动脚本 | `scripts/start.ps1`，可选拉起 NapCat 和 GPT-SoVITS |
 | 测试 | 403 项离线测试通过（2 项跳过） |
 | 文档 | 运行、配置、架构、QQ/GPT-SoVITS 接入 |
 
@@ -24,10 +24,10 @@
 
 ### P0：决定能否日常使用
 
-1. **GPT-SoVITS 专属音色训练**
-   - 已用 v2 整合包跑通 zero-shot，群/私聊语音条均现场确认；
-   - 参考音频和 prompt 文本已使用大肥鱼数据集；
-   - 下一步训练专属音色（8GB 显存需小 batch），再对比 zero-shot 效果。
+1. **GPT-SoVITS 专属音色验收**
+   - 已完成 SoVITS 12 epoch、GPT 10 epoch，权重在 `SoVITS_weights_v2/` 和 `GPT_weights_v2/`；
+   - 已加载到 `api_v2` 并生成 `trained.wav`；
+   - 待试听对比 zero-shot，并在 QQ 里确认新权重的语音条。
 
 2. **QQ 网关稳定性**
    - 现场出现过 `ECONNREFUSED 8081`，表现为网关进程退出；
