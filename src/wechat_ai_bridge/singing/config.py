@@ -53,6 +53,10 @@ class SingingSettings:
             raise ValueError('SINGING_POLL_SECONDS must be 0.1..60')
         if not isinstance(self.rvc_model, str) or not self.rvc_model.strip():
             raise ValueError('SINGING_RVC_MODEL must not be empty')
+        for name in ('music_dir', 'queue_db', 'output_dir', 'rvc_home', 'rvc_python',
+                     'ffmpeg', 'torch_home'):
+            value = Path(getattr(self, name)).expanduser().resolve()
+            object.__setattr__(self, name, value)
 
     @classmethod
     def from_env(cls) -> 'SingingSettings':

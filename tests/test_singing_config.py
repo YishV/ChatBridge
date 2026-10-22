@@ -12,7 +12,7 @@ class SingingSettingsTests(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 settings = SingingSettings.from_env()
         self.assertFalse(settings.enabled)
-        self.assertEqual(settings.music_dir, Path('data/music'))
+        self.assertEqual(settings.music_dir, Path('data/music').resolve())
         self.assertFalse(settings.send_mp3)
         self.assertEqual(settings.voice_excerpt_seconds, 30)
 
@@ -27,7 +27,7 @@ class SingingSettingsTests(unittest.TestCase):
         with patch.dict(os.environ, values, clear=True):
             settings = SingingSettings.from_env()
         self.assertTrue(settings.enabled)
-        self.assertEqual(settings.music_dir, Path('D:/music'))
+        self.assertEqual(settings.music_dir, Path('D:/music').resolve())
         self.assertTrue(settings.send_mp3)
         self.assertEqual(settings.voice_excerpt_seconds, 20)
         self.assertEqual(settings.pitch, 5)

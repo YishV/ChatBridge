@@ -31,6 +31,14 @@ class SingingIntentTests(unittest.TestCase):
             '天空之城',
         )
 
+    def test_listen_suffixes_do_not_become_song_titles(self):
+        self.assertTrue(parse_request('唱首歌听听', is_group=False, mentioned=False).random)
+        self.assertTrue(parse_request('唱首听听', is_group=False, mentioned=False).random)
+        self.assertEqual(
+            parse_request('唱首天空之城听听', is_group=False, mentioned=False).query,
+            '天空之城',
+        )
+
     def test_polite_prefixes_and_point_command(self):
         self.assertEqual(
             parse_request('能不能唱首天空之城', is_group=False, mentioned=False).query,

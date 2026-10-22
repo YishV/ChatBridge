@@ -34,8 +34,10 @@ class CoverRenderer:
         work.mkdir(parents=True, exist_ok=True)
         vocals, no_vocals = self._separate(source, work)
         converted = self._convert(vocals, work)
+        mixed = work / 'mixed.mp3'
+        self._mix(converted, no_vocals, mixed)
         output.parent.mkdir(parents=True, exist_ok=True)
-        self._mix(converted, no_vocals, output)
+        shutil.copyfile(mixed, output)
         return output
 
     def _media_env(self):

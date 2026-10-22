@@ -152,6 +152,75 @@ class ChatService:
         """Compatibility entry point for callers that only consume text."""
         return self.generate(message).reply
 
+    def singing_ack(self, message: IncomingMessage, song_title: str) -> str | None:
+        """Generate a short, persona-consistent acknowledgement for a queued cover."""
+        try:
+            prompt = self._load_system_prompt()
+            text = self.model.complete([
+                {'role': 'system', 'content': (
+                    prompt + '\n你刚收到一次 QQ 点歌，歌曲已经进入后台翻唱队列。'
+                    '用一句自然、短的中文接住这次点歌，可以傲娇、吐槽或期待；'
+                    '不要用“收到，开始翻唱”这种客服模板，不要声称已经唱完，'
+                    '不要发链接、文件路径或技术细节。只输出这句话。'
+                )},
+                {'role': 'user', 'content': f'用户点歌：《{song_title}》。'},
+            ])
+        except Exception:
+            return None
+        if not isinstance(text, str):
+            return None
+        text = ' '.join(text.split()).strip()[:120]
+        if not text or text.startswith('{') or text.startswith('['):
+            return None
+        return text
+
+    def classify_singing(self, message: IncomingMessage) -> str | None:
+        """Return '', a song title, or None; exceptions mean classifier unavailable."""
+        recent = '\n'.join(
+            f'{turn.role}: {turn.content}'
+            for turn in list(self._recent(message.group_id))[-6:]
+        )
+        system = (
+            '你是 QQ 聊天机器人的点歌意图分类器。只判断最新一条用户消息是否在要求机器人'
+            '翻唱/点歌。只输出 JSON：'
+            '{"action":"cover","song":"歌名或空字符串","confidence":0到1} 或 '
+            '{"action":"none","confidence":0到1}。'
+            '只有明确要求机器人唱、翻唱、点一首、随机来一首，才算 cover。'
+            '讨论唱歌、评价歌曲、问机器人会不会唱、让其他人唱，都算 none。'
+            '没说歌名时 song 为空字符串。'
+        )
+        user = f'最近对话：\n{recent}\n最新消息：{message.text}'
+        try:
+            if hasattr(self.model, 'complete_json'):
+                raw = self.model.complete_json([
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ])
+            else:
+                raw = self.model.complete([
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': user},
+                ])
+            data = json.loads(raw)
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise
+        if not isinstance(data, dict):
+            return None
+        if data.get('action') != 'cover':
+            return None
+        try:
+            confidence = float(data.get('confidence', 0))
+        except (TypeError, ValueError):
+            return None
+        if confidence < 0.6:
+            return None
+        song = data.get('song')
+        if song is None or (isinstance(song, str) and song.strip().lower() in ('', 'null', 'none')):
+            return ''
+        if not isinstance(song, str):
+            return None
+        return song.strip()[:100]
+
     def _meme_candidates(self, message: IncomingMessage):
         if self.meme_catalog is None:
             return []

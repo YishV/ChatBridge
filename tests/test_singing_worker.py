@@ -60,7 +60,7 @@ class SingingWorkerTests(unittest.TestCase):
             source.write_bytes(b'audio')
             settings = SingingSettings(
                 enabled=True, music_dir=root, send_mp3=False,
-                output_dir=root / 'covers', ffmpeg=Path('ffmpeg'),
+                output_dir=root / 'covers', rvc_home=root, ffmpeg=Path('ffmpeg'),
             )
             queue = SingingQueue(root / 'q.sqlite3')
             queue.enqueue('private:1', False, '1', 'song', str(source))

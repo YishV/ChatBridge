@@ -2,11 +2,22 @@
 
 import hashlib
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
 
 from wechat_ai_bridge.singing.renderer import RenderError
+
+
+_ERROR_TEXT = {
+    'separation_failed': '人声分离没成功，换一首试试吧。',
+    'render_subprocess_failed': '翻唱引擎执行失败，等会儿再试。',
+    'rvc_failed': '音色转换没成功，换一首试试吧。',
+    'render_empty': '这次没有生成有效音频，等会儿再试。',
+    'source_invalid': '这个音频文件读不了，换一个格式试试。',
+    'ffmpeg_missing': '本机音频工具缺失，先检查 ffmpeg 配置。',
+}
 
 
 class SingingWorker:
@@ -47,7 +58,10 @@ class SingingWorker:
         except Exception as exc:
             code = exc.code if isinstance(exc, RenderError) else 'render_failed'
             self.queue.fail(job.id, code)
-            self.sender.send_group_text(job.conversation_id, f'翻唱失败：{code}')
+            self.sender.send_group_text(
+                job.conversation_id,
+                _ERROR_TEXT.get(code, '这次翻唱失败了，换一首试试吧。'),
+            )
         return True
 
     def run_forever(self):
@@ -64,7 +78,11 @@ class SingingWorker:
 
     def _send_voice(self, job, output: Path):
         excerpt = output.with_suffix('.30s.wav')
-        self._excerpt(output, excerpt)
+        temp_dir = self.settings.rvc_home / '.work'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temporary = temp_dir / (output.stem + '.30s.wav')
+        self._excerpt(output, temporary)
+        shutil.copyfile(temporary, excerpt)
         self.sender.send_voice_file(job.conversation_id, excerpt)
 
     def _excerpt(self, source: Path, output: Path):

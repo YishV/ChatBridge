@@ -207,7 +207,8 @@ def run_qq(args, settings, emit):
             singing_queue = SingingQueue(singing_settings.queue_db)
             singing = SingingCoordinator(
                 singing_settings, SongLibrary(singing_settings.music_dir),
-                singing_queue, sender,
+                singing_queue, sender, ack=processor.chat.singing_ack,
+                classifier=processor.chat.classify_singing,
             )
         service = DeliveryService(processor, store, sender, console=console,
             meme_catalog=catalog,

@@ -17,6 +17,24 @@ _POINT = re.compile(r'^(?:点歌|我想听|放一首|放首)\s*(.*)$')
 _EXPLICIT_GROUP = re.compile(
     _PREFIX + r'(?:点歌|(?:随便|随机)?(?:唱|来|翻唱)(?:一首|首|一下|一个))'
 )
+_TRAILING = ('吧', '呗', '呀', '啊', '吗', '呢', '了')
+_LISTEN_SUFFIXES = ('来听听', '听听', '给我听', '听一下', '听一听')
+
+
+def _clean_query(value: str) -> str:
+    value = value.strip()
+    changed = True
+    while changed:
+        changed = False
+        for suffix in _TRAILING:
+            if value.endswith(suffix):
+                value = value[:-len(suffix)].strip()
+                changed = True
+        for suffix in _LISTEN_SUFFIXES:
+            if value.endswith(suffix):
+                value = value[:-len(suffix)].strip()
+                changed = True
+    return value
 
 
 @dataclass(frozen=True)
@@ -26,6 +44,10 @@ class SingingRequest:
     @property
     def random(self) -> bool:
         return self.query is None
+
+
+def looks_like_singing(text: str) -> bool:
+    return isinstance(text, str) and any(token in text for token in ('唱', '歌', '点歌'))
 
 
 def parse_request(text: str, *, is_group: bool, mentioned: bool) -> SingingRequest | None:
@@ -39,18 +61,18 @@ def parse_request(text: str, *, is_group: bool, mentioned: bool) -> SingingReque
         action, query = command.groups()
         if action == '随机翻唱':
             return SingingRequest()
-        query = (query or '').strip()
+        query = _clean_query(query or '')
         return SingingRequest(None if query in _RANDOM_WORDS else query)
     point = _POINT.match(text)
     if point:
-        query = point.group(1).strip()
+        query = _clean_query(point.group(1))
         return SingingRequest(None if query in _RANDOM_WORDS else query)
     if is_group and not mentioned and not _EXPLICIT_GROUP.match(text):
         return None
     natural = _NATURAL.match(text)
     if not natural:
         return None
-    query = natural.group(1).strip().rstrip('吧呗呀啊吗')
+    query = _clean_query(natural.group(1))
     if query in _RANDOM_WORDS:
         return SingingRequest()
     return SingingRequest(query) if query else SingingRequest()

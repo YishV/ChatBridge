@@ -55,6 +55,18 @@ class SingingCoordinatorTests(unittest.TestCase):
         self.assertTrue(self.coordinator.handle(message))
         self.assertIn('没找到', self.sender.texts[0][1])
 
+    def test_ack_can_be_generated_by_model_hook(self):
+        settings = SingingSettings(
+            enabled=True, music_dir=self.root / 'music', output_dir=self.root / 'covers'
+        )
+        coordinator = SingingCoordinator(
+            settings, SongLibrary(settings.music_dir), self.queue, self.sender,
+            ack=lambda message, title: f'哼，{title}就交给我吧。',
+        )
+        message = IncomingMessage('m1', 'private:1', '1', '/翻唱 天空之城', True, is_group=False)
+        self.assertTrue(coordinator.handle(message))
+        self.assertIn('天空之城就交给我吧', self.sender.texts[0][1])
+
 
 if __name__ == '__main__':
     unittest.main()
