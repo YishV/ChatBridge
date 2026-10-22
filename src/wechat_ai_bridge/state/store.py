@@ -123,6 +123,16 @@ class StateStore:
                 self._insert_chat(message_id, group_id, "user", validated)
             return claimed
 
+    def clear_chat_history(self, group_id: str) -> int:
+        """Delete one conversation's persisted transcript without touching other users."""
+        if not isinstance(group_id, str) or not group_id.strip():
+            raise ValueError('invalid_group_id')
+        with self.connection:
+            cursor = self.connection.execute(
+                'DELETE FROM chat_history WHERE group_id = ?', (group_id,)
+            )
+            return int(cursor.rowcount)
+
     def load_chat_history(self, group_id: str, limit: int = 50) -> list[dict]:
         """Read recent authorized context in original order without expiring the archive."""
         if type(limit) is not int or not 1 <= limit <= 200:

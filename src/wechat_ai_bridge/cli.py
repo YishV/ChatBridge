@@ -57,13 +57,15 @@ def create_meme_catalog(settings, *, outgoing=None):
 
 
 def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None,
-                     voice_enabled=False, singing_enabled=False):
+                     voice_enabled=False, singing_enabled=False, platform='wechat'):
     identity_path = settings.state_db.with_suffix('.members.key')
     if store.has_chat_history() and not identity_path.is_file():
         raise GatewayError('member_identity_key_missing_for_history')
     groups = store.allowed_groups() if history_groups is None else history_groups
     if meme_catalog is _UNSET:
         meme_catalog = create_meme_catalog(settings)
+    from wechat_ai_bridge.memory import MemoryStore
+    memory = MemoryStore(settings.memory_db) if settings.memory_enabled else None
     chat = ChatService(create_model(settings), settings.system_prompt or DEFAULT_SYSTEM_PROMPT,
         prompt_file=None if settings.system_prompt else settings.prompt_file,
         alias_key=load_identity_key(identity_path), history_store=store,
@@ -71,7 +73,7 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         meme_catalog=meme_catalog,
         meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
         weather_client=create_weather_client(settings), vision=vision, voice_enabled=voice_enabled,
-        singing_enabled=singing_enabled)
+        singing_enabled=singing_enabled, memory=memory, platform=platform)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)
@@ -196,7 +198,8 @@ def run_qq(args, settings, emit):
                                                        window_seconds=qq.vision_window_seconds)
                                          if qq.vision_enabled else None),
                                      voice_enabled=qq.voice_enabled,
-                                     singing_enabled=singing_settings.enabled)
+                                     singing_enabled=singing_settings.enabled,
+                                     platform='qq')
         try:
             sender = QQSender(qq, client=client)
         except ValueError:

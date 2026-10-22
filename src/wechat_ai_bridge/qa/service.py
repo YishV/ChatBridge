@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,7 @@ from time import monotonic
 from typing import Protocol
 
 from wechat_ai_bridge.message import ChatReply, IncomingMessage
+from wechat_ai_bridge.memory.extractor import apply_memory_action, summarize_turns
 from wechat_ai_bridge.weather.conversation import WeatherConversation
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -48,7 +50,7 @@ class ChatService:
                  history_store=None, history_groups=(), history_limit: int = 50,
                  meme_catalog=None, meme_cooldown_seconds: int = 60, meme_recent_count: int = 5,
                  weather_client=None, vision=None, voice_enabled: bool = False,
-                 singing_enabled: bool = False):
+                 singing_enabled: bool = False, memory=None, platform: str = 'wechat'):
         self.model = model
         self.system_prompt = system_prompt
         self.prompt_file = prompt_file
@@ -56,8 +58,14 @@ class ChatService:
             raise ValueError('voice_enabled_invalid')
         if type(singing_enabled) is not bool:
             raise ValueError('singing_enabled_invalid')
+        if platform not in ('wechat', 'qq'):
+            raise ValueError('memory_platform_invalid')
         self.voice_enabled = voice_enabled
         self.singing_enabled = singing_enabled
+        self.memory = memory
+        self.platform = platform
+        self._turn_count: dict[str, int] = {}
+        self._memory_command_ids: set[str] = set()
         self.meme_catalog = meme_catalog
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
@@ -116,6 +124,110 @@ class ChatService:
         identity = json.dumps([message.group_id, message.sender_id], ensure_ascii=False).encode()
         alias = hmac.new(self._alias_key, identity, hashlib.sha256).hexdigest()[:12]
         return 'member_' + alias
+
+    def _memory_key(self, message: IncomingMessage) -> str:
+        return f'{message.group_id}'
+
+    def _memory_block(self, message: IncomingMessage) -> str:
+        if self.memory is None or message.is_group:
+            return ''
+        return self.memory.format_for_prompt(
+            self.platform, self._memory_key(message), message.text
+        )
+
+    def _handle_memory_command(self, message: IncomingMessage) -> str | None:
+        if self.memory is None or message.is_group:
+            return None
+        text = message.text.strip()
+        if any(text.startswith(prefix) for prefix in (
+                '清空我的记忆', '清空记忆', '查看记忆', '我的记忆',
+                '记住', '记一下', '记下来', '保存记忆', '帮我记住', '帮我记一下',
+                '忘记', '忘掉')):
+            self._memory_command_ids.add(message.message_id)
+        for prefix in ('清空我的记忆', '清空记忆'):
+            if text.startswith(prefix):
+                count = self.memory.clear(self.platform, self._memory_key(message))
+                if self.history_store is not None:
+                    self.history_store.clear_chat_history(message.group_id)
+                self._context.pop(message.group_id, None)
+                self._history_loaded.discard(message.group_id)
+                return f'好，已经清掉 {count} 条关于你的记忆和这段聊天记录。' if count else '好，这段聊天记录已经清掉了。'
+        for prefix in ('查看记忆', '我的记忆'):
+            if text.startswith(prefix):
+                items = self.memory.list(self.platform, self._memory_key(message), limit=20)
+                summary = self.memory.get_summary(self.platform, self._memory_key(message))
+                if not items and not summary:
+                    return '现在还没有关于你的长期记忆。'
+                lines = []
+                if summary:
+                    lines.append(f'摘要：{summary}')
+                lines.extend(f'- {item.content}' for item in items)
+                return ('我记得这些：\n' + '\n'.join(lines))[:800]
+        for prefix in ('记住', '记一下', '记下来', '保存记忆', '帮我记住', '帮我记一下'):
+            if text.startswith(prefix):
+                content = text[len(prefix):].lstrip('：:，, ').strip()
+                if not content:
+                    return '要记住什么？'
+                try:
+                    self.memory.add(
+                        self.platform, self._memory_key(message), 'note', content,
+                        confidence=1.0, importance=0.8,
+                        source_message_id=message.message_id,
+                    )
+                except ValueError:
+                    return '这条没记住，换个短一点的的说法吧。'
+                return f'好，记住了：{content[:200]}'
+        for prefix in ('忘记', '忘掉'):
+            if text.startswith(prefix):
+                query = text[len(prefix):].lstrip('：:，, ').strip()
+                if not query:
+                    return '要忘记什么？'
+                count = self.memory.delete(self.platform, self._memory_key(message), query)
+                return f'已经忘掉 {count} 条相关记忆。' if count else f'没找到关于「{query}」的记忆。'
+        return None
+
+    def _remember_async(self, message: IncomingMessage, reply: str) -> None:
+        if self.memory is None or message.is_group:
+            return
+        if message.message_id in self._memory_command_ids:
+            return
+        thread = threading.Thread(
+            target=self._remember, args=(message, reply), daemon=True,
+            name=f'memory-{message.message_id}',
+        )
+        thread.start()
+
+    def _remember(self, message: IncomingMessage, reply: str) -> None:
+        key = self._memory_key(message)
+        try:
+            apply_memory_action(
+                self.model, self.memory, self.platform, key,
+                message.text, reply, message.message_id,
+            )
+        except Exception:
+            return
+        self._maybe_summary(message)
+
+    def _maybe_summary(self, message: IncomingMessage) -> None:
+        if self.memory is None or message.is_group:
+            return
+        key = self._memory_key(message)
+        count = self._turn_count.get(key, 0) + 1
+        self._turn_count[key] = count
+        if count % 30 != 0:
+            return
+        recent = list(self._recent(message.group_id))[-30:]
+        if not recent:
+            return
+        try:
+            summary = summarize_turns(
+                self.model, self.memory.get_summary(self.platform, key),
+                [(turn.role, turn.content) for turn in recent],
+            )
+            if summary:
+                self.memory.save_summary(self.platform, key, summary, count)
+        except Exception:
+            return
 
     def observe(self, message: IncomingMessage) -> None:
         self._restore(message.group_id)
@@ -245,6 +357,9 @@ class ChatService:
             return []
 
     def generate(self, message: IncomingMessage, *, model_call=None, guard=None) -> ChatReply:
+        command = self._handle_memory_command(message)
+        if command is not None:
+            return ChatReply(command)
         call = model_call or (lambda method, *args, **kwargs: method(*args, **kwargs))
         guard = guard or (lambda: None)
         prompt = self._load_system_prompt()
@@ -283,6 +398,7 @@ class ChatService:
             '{"reply":null} 或 {"reply":"简短回复"}，不要输出其他内容。'
         )
         history = list(self._recent(message.group_id))
+        memory_block = self._memory_block(message)
         ownership = {'current_speaker': self._member(message),
                      'assistant_reply_targets': [
                          {'history_index': index, 'reply_to': turn.member}
@@ -362,6 +478,7 @@ class ChatService:
             if vision_image.sampled_frame:
                 instruction += '这张附件来自动图，只取了第一帧；应明确这是首帧，不能声称看过完整动画。'
         system = (prompt + rules + instruction + weather_instructions
+                  + (('\n' + memory_block) if memory_block else '')
                   + '\n群聊归属数据（history_index 为下面历史列表的零起始序号）：'
                   + json.dumps(ownership, ensure_ascii=False))
         messages = [{'role': 'system', 'content': system}]
@@ -413,4 +530,6 @@ class ChatService:
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         """Only the delivery boundary may confirm an assistant message."""
         if text.strip():
-            self._recent(message.group_id).append(_Turn(monotonic(), 'assistant', text.strip()[:800], self._member(message)))
+            clean = text.strip()[:800]
+            self._recent(message.group_id).append(_Turn(monotonic(), 'assistant', clean, self._member(message)))
+            self._remember_async(message, clean)

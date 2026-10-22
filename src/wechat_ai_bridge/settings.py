@@ -31,6 +31,8 @@ class Settings:
     meme_cache_dir: Path = Path('data/runtime/memes')
     meme_cooldown_seconds: int = 60
     meme_recent_count: int = 5
+    memory_enabled: bool = True
+    memory_db: Path = Path('data/runtime/memory.sqlite3')
     voice_enabled: bool = False
     voice_name: str = "zh-CN-XiaoxiaoNeural"
     voice_max_chars: int = 120
@@ -41,6 +43,8 @@ class Settings:
     vision_window_seconds: int = 120
 
     def __post_init__(self):
+        if type(self.memory_enabled) is not bool:
+            raise ValueError('长期记忆开关无效')
         if (type(self.vision_enabled) is not bool or type(self.vision_window_seconds) is not int
                 or not 30 <= self.vision_window_seconds <= 300):
             raise ValueError('看图开关或关联时间窗口无效')
@@ -80,6 +84,9 @@ class Settings:
         memes_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMES_ENABLED', 'true').strip().lower()
         if memes_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('表情包开关必须为 true 或 false')
+        memory_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMORY_ENABLED', 'true').strip().lower()
+        if memory_enabled not in ('true', 'false', '1', '0'):
+            raise ValueError('长期记忆开关必须为 true 或 false')
         voice_enabled = os.getenv('WECHAT_AI_BRIDGE_VOICE_ENABLED', 'false').strip().lower()
         if voice_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('语音开关必须为 true 或 false')
@@ -114,6 +121,8 @@ class Settings:
             meme_cache_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_CACHE_DIR', 'data/runtime/memes')),
             meme_cooldown_seconds=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS', '60')),
             meme_recent_count=int(os.getenv('WECHAT_AI_BRIDGE_MEME_RECENT_COUNT', '5')),
+            memory_enabled=memory_enabled in ('true', '1'),
+            memory_db=Path(os.getenv('WECHAT_AI_BRIDGE_MEMORY_DB', 'data/runtime/memory.sqlite3')),
             voice_enabled=voice_enabled in ('true', '1'),
             voice_name=os.getenv('WECHAT_AI_BRIDGE_VOICE_NAME', 'zh-CN-XiaoxiaoNeural').strip(),
             voice_max_chars=int(os.getenv('WECHAT_AI_BRIDGE_VOICE_MAX_CHARS', '120')),
