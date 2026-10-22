@@ -78,6 +78,7 @@ uv run --extra native wechat-ai-bridge qq run
 - [架构](docs/architecture.md)：进程、分层、数据流
 - [完成度与后续建议](docs/roadmap.md)
 - [QQ 接入说明](docs/qq-gpt-sovits.md)
+- [QQ 原生表情与戳一戳](docs/qq-extras.md)
 - [曲库翻唱](docs/singing-library.md)
 - [私聊长期记忆](docs/memory.md)
 - [文字聊天验收](docs/chat-acceptance.md)

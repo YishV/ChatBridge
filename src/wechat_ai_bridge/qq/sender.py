@@ -51,6 +51,22 @@ class QQSender:
             return SendReceipt(False)
         return SendReceipt(True, message_id)
 
+    def send_face(self, conversation_id: str, face_id: str) -> SendReceipt:
+        try:
+            private = self._private_user(conversation_id)
+            message_id = (self.client.send_private_face(private, face_id) if private is not None
+                          else self.client.send_group_face(conversation_id, face_id))
+        except OneBotError:
+            return SendReceipt(False)
+        return SendReceipt(True, message_id)
+
+    def send_poke(self, conversation_id: str, user_id: str) -> SendReceipt:
+        try:
+            result = self.client.send_poke(conversation_id, user_id)
+        except OneBotError:
+            return SendReceipt(False)
+        return SendReceipt(True, result)
+
     def send_group_file(self, conversation_id: str, path: Path,
                         name: str | None = None) -> SendReceipt:
         try:

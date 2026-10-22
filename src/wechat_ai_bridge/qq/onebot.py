@@ -192,3 +192,33 @@ class OneBotClient:
         return self.send_group_message(
             group_id, [{'type': 'record', 'data': {'file': path.as_uri()}}]
         )
+
+    @staticmethod
+    def _face_id(face_id: str) -> str:
+        if not isinstance(face_id, str) or not face_id.isdigit() or len(face_id) > 4:
+            raise OneBotError('onebot_face_invalid')
+        return face_id
+
+    def send_group_face(self, group_id: str, face_id: str) -> str:
+        return self.send_group_message(
+            group_id, [{'type': 'face', 'data': {'id': self._face_id(face_id)}}]
+        )
+
+    def send_private_face(self, user_id: str, face_id: str) -> str:
+        return self.send_private_message(
+            user_id, [{'type': 'face', 'data': {'id': self._face_id(face_id)}}]
+        )
+
+    def send_poke(self, conversation_id: str, user_id: str) -> str:
+        if not isinstance(conversation_id, str) or not isinstance(user_id, str):
+            raise OneBotError('onebot_poke_target_invalid')
+        target = int(user_id) if user_id.isdigit() else user_id
+        if conversation_id.startswith('private:'):
+            data = self.call('send_poke', {'user_id': target})
+        else:
+            data = self.call('group_poke', {
+                'group_id': int(conversation_id) if conversation_id.isdigit() else conversation_id,
+                'user_id': target,
+            })
+        result = data.get('data')
+        return str(result) if result is not None else 'poke'

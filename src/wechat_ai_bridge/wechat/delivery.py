@@ -120,6 +120,7 @@ class DeliveryService:
                           server_message_id=result.server_message_id, elapsed=elapsed)
         if delivery == DeliveryOutcome.CONFIRMED:
             self.processor.record_reply(message, processed.reply)
+            return self._deliver_extras(message, processed, DeliveryResult(processed, delivery))
         return DeliveryResult(processed, delivery)
 
     def _deliver_text(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
@@ -147,8 +148,31 @@ class DeliveryService:
                           server_message_id=receipt.server_message_id, elapsed=elapsed)
         if delivery == DeliveryOutcome.CONFIRMED:
             self.processor.record_reply(message, processed.reply)
-            return self._deliver_image(message, processed)
+            return self._deliver_extras(message, processed,
+                                        self._deliver_image(message, processed))
         return DeliveryResult(processed, delivery)
+
+    def _deliver_extras(self, message: IncomingMessage, processed: ProcessResult,
+                        result: DeliveryResult) -> DeliveryResult:
+        if processed.face_id:
+            sender = getattr(self.sender, 'send_face', None)
+            if callable(sender):
+                try:
+                    receipt = sender(message.group_id, processed.face_id)
+                    self.console.notice(
+                        f'QQ 原生表情 #{processed.face_id}：'
+                        + ('已发送' if receipt.confirmed else '发送未确认'))
+                except Exception:
+                    self.console.notice(f'QQ 原生表情 #{processed.face_id} 发送失败')
+        if processed.poke:
+            sender = getattr(self.sender, 'send_poke', None)
+            if callable(sender):
+                try:
+                    receipt = sender(message.group_id, message.sender_id)
+                    self.console.notice('戳一戳：' + ('已发送' if receipt.confirmed else '发送未确认'))
+                except Exception:
+                    self.console.notice('戳一戳发送失败')
+        return result
 
     def _deliver_image(self, message: IncomingMessage, processed: ProcessResult) -> DeliveryResult:
         text_delivery = DeliveryOutcome.CONFIRMED

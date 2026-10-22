@@ -84,12 +84,20 @@ def map_event(event: dict, self_id: str | int | None) -> IncomingMessage | None:
             return None
         group_id = event.get('group_id')
         user_id = event.get('user_id')
-        if group_id is None or user_id is None:
+        if user_id is None:
             return None
         stamp = event.get('time', 0)
-        message_id = f'poke:{group_id}:{user_id}:{stamp}'
+        if group_id is None:
+            conversation_id = 'private:' + str(user_id)
+            is_group = False
+            message_id = f'poke:private:{user_id}:{stamp}'
+        else:
+            conversation_id = str(group_id)
+            is_group = True
+            message_id = f'poke:{group_id}:{user_id}:{stamp}'
         return IncomingMessage(
-            message_id=message_id, group_id=str(group_id), sender_id=str(user_id),
+            message_id=message_id, group_id=conversation_id, sender_id=str(user_id),
             text='拍了拍你', mentioned_bot=False, interaction='pat',
+            is_group=is_group,
         )
     return None

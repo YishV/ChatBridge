@@ -131,7 +131,8 @@ class ChatCompletionsClient:
         except (ValueError, TypeError, UnicodeError, RecursionError):
             raise ModelError(code='model_response_json_invalid') from None
 
-    def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=(), voice_enabled=False) -> str:
+    def complete_decision(self, messages: list[dict[str, str]], *, meme_ids=(),
+                          voice_enabled=False, face_ids=(), poke_enabled=False) -> str:
         """Return a JSON decision from a forced tool call.
 
         DeepSeek's JSON Output mode can return empty content for this project's
@@ -139,14 +140,20 @@ class ChatCompletionsClient:
         without relying on that mode; an empty reply is silence, not an error.
         """
         meme_ids = tuple(meme_ids)
+        face_ids = tuple(face_ids)
         if (len(set(meme_ids)) != len(meme_ids)
                 or any(not isinstance(asset_id, str) or not re.fullmatch(r"[0-9]{3,6}", asset_id)
                        for asset_id in meme_ids)):
             raise ValueError("invalid meme ids")
-        if type(voice_enabled) is not bool:
-            raise ValueError("invalid voice flag")
+        if (len(set(face_ids)) != len(face_ids)
+                or any(not isinstance(face_id, str) or not re.fullmatch(r"[0-9]{1,4}", face_id)
+                       for face_id in face_ids)):
+            raise ValueError("invalid face ids")
+        if type(voice_enabled) is not bool or type(poke_enabled) is not bool:
+            raise ValueError("invalid interaction flag")
         payload = self._payload(messages)
-        payload["tools"] = [self._decision_tool(meme_ids, voice_enabled)]
+        payload["tools"] = [self._decision_tool(
+            meme_ids, voice_enabled, face_ids=face_ids, poke_enabled=poke_enabled)]
         payload["tool_choice"] = {"type": "function", "function": {"name": "decide_reply"}}
         data = self._post(payload)
         choice = self._choice(data)
@@ -188,6 +195,16 @@ class ChatCompletionsClient:
                 if type(voice) is not bool:
                     raise ModelError(code="model_response_invalid")
                 cleaned["voice"] = voice
+            face_id = decision.get("face_id")
+            if face_id is not None:
+                if not isinstance(face_id, str) or face_id not in face_ids:
+                    raise ModelError(code="model_response_invalid")
+                cleaned["face_id"] = face_id
+            poke = decision.get("poke")
+            if poke is not None:
+                if type(poke) is not bool or not poke_enabled:
+                    raise ModelError(code="model_response_invalid")
+                cleaned["poke"] = poke
             return json.dumps(cleaned, ensure_ascii=False)
         content = message.get("content")
         if isinstance(content, str) and content.strip():
@@ -202,7 +219,7 @@ class ChatCompletionsClient:
         raise ModelError(code="model_response_empty")
 
     @staticmethod
-    def _decision_tool(meme_ids, voice_enabled=False):
+    def _decision_tool(meme_ids, voice_enabled=False, *, face_ids=(), poke_enabled=False):
         properties = {
             "reply": {"type": "string",
                       "description": "要发到群里的简短中文回复；决定不接话时填空字符串。"},
@@ -211,6 +228,16 @@ class ChatCompletionsClient:
             properties["meme_id"] = {
                 "type": "string", "enum": list(meme_ids),
                 "description": "可选的已注册表情编号；不配图时填空字符串。",
+            }
+        if face_ids:
+            properties["face_id"] = {
+                "type": "string", "enum": list(face_ids),
+                "description": "可选的 QQ 原生表情编号；不用原生表情时填空字符串。",
+            }
+        if poke_enabled:
+            properties["poke"] = {
+                "type": "boolean",
+                "description": "是否在回复后戳一戳当前说话人；只在高情绪、撒娇或回应被戳时偶尔使用。",
             }
         if voice_enabled:
             properties["voice"] = {

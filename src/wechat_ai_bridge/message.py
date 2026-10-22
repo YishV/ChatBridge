@@ -40,6 +40,8 @@ class ProcessResult:
     meme_id: str | None = None
     model_retries: int | None = None
     voice: bool = False
+    face_id: str | None = None
+    poke: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,3 +49,5 @@ class ChatReply:
     reply: str | None = None
     meme_id: str | None = None
     voice: bool = False
+    face_id: str | None = None
+    poke: bool = False

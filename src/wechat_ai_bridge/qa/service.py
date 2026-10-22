@@ -11,6 +11,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Protocol
 
+from wechat_ai_bridge.faces import FACE_IDS, QQ_FACES
 from wechat_ai_bridge.message import ChatReply, IncomingMessage
 from wechat_ai_bridge.memory.extractor import apply_memory_action, summarize_turns
 from wechat_ai_bridge.weather.conversation import WeatherConversation
@@ -64,6 +65,7 @@ class ChatService:
         self.singing_enabled = singing_enabled
         self.memory = memory
         self.platform = platform
+        self.qq_extras = platform == 'qq'
         self._turn_count: dict[str, int] = {}
         self._memory_command_ids: set[str] = set()
         self.meme_catalog = meme_catalog
@@ -388,15 +390,20 @@ class ChatService:
     def _generate_reply(self, message: IncomingMessage, prompt: str, call, weather_instructions: str,
                         *, vision_image=None) -> ChatReply:
         candidates = [] if vision_image is not None else self._meme_candidates(message)
-        instruction = (
-            "群友刚刚通过微信原生拍一拍拍了拍你，请按当前人设简短地用文字回应这次互动。"
-            "不能声称已拍回去或执行其他未实现的动作。"
-            if message.interaction == "pat" else
-            "本条消息明确 @ 了你，请直接用文字回答。"
-            if message.mentioned_bot else
-            '本条消息没有 @ 你。先判断是否适合接话，默认保持沉默；只返回 JSON 对象 '
-            '{"reply":null} 或 {"reply":"简短回复"}，不要输出其他内容。'
-        )
+        if message.interaction == "pat":
+            instruction = (
+                "对方刚刚在 QQ 戳了你。可以按人设回应，也可以偶尔用 poke=true 戳回去；"
+                "不要声称做了没有执行的动作。"
+                if self.qq_extras else
+                "群友刚刚通过微信原生拍一拍拍了拍你，请按当前人设简短地用文字回应这次互动。"
+                "不能声称已拍回去或执行其他未实现的动作。"
+            )
+        elif message.mentioned_bot:
+            instruction = ("私聊里直接回答。" if not message.is_group
+                           else "本条消息明确 @ 了你，请直接用文字回答。")
+        else:
+            instruction = ('本条消息没有 @ 你。先判断是否适合接话，默认保持沉默；只返回 JSON 对象 '
+                           '{"reply":null} 或 {"reply":"简短回复"}，不要输出其他内容。')
         history = list(self._recent(message.group_id))
         memory_block = self._memory_block(message)
         ownership = {'current_speaker': self._member(message),
@@ -430,6 +437,11 @@ class ChatService:
                 '不能声称能够唱歌、发送语音或控制电脑。',
                 '不能声称自己实时清唱；可以接受点歌并生成翻唱成品。')
             rules += '用户明确点歌时，说明会安排翻唱，不要回答“唱不了”。'
+        if self.qq_extras:
+            rules += (
+                'QQ 里你可以偶尔在文字后附一个原生表情，或在合适时戳一戳当前说话人；'
+                '这是可选动作，不要每句都发表情或戳人，不能声称已经执行。'
+            )
         if candidates:
             instruction = (
                 '本条为拍一拍，请按人设回应。' if message.interaction == 'pat' else
@@ -446,15 +458,19 @@ class ChatService:
         use_decision = (
             vision_image is None
             and callable(decision_method)
-            and (candidates or not message.is_directed or self.voice_enabled)
+            and (candidates or not message.is_directed or self.voice_enabled or self.qq_extras)
         )
         if use_decision:
             if message.interaction == "pat":
-                instruction = ('群友刚刚拍了你，请按人设回应这次互动。'
+                instruction = ('对方刚刚在 QQ 戳了你。可以按人设回应，也可以偶尔用 poke=true 戳回去；'
+                               '不要声称做了没有执行的动作。'
+                               if self.qq_extras else
+                               '群友刚刚拍了你，请按人设回应这次互动。'
                                '必须调用 decide_reply 工具：reply 填简短中文；不能声称已拍回去。')
             elif message.mentioned_bot:
-                instruction = ('本条消息明确 @ 了你，请直接回答。'
-                               '必须调用 decide_reply 工具：reply 填简短中文。')
+                instruction = ('私聊里直接回答。' if not message.is_group else
+                               '本条消息明确 @ 了你，请直接回答。')
+                instruction += ('必须调用 decide_reply 工具：reply 填简短中文。')
             else:
                 instruction = ('本条消息没有 @ 你。先判断是否适合接话：有人提问、话题与你有关、'
                                '有人等你回应，或你能补充有用信息时接话；纯闲聊可以沉默。'
@@ -464,6 +480,13 @@ class ChatService:
                 instruction += ('可选择 voice=true 发成语音条：短句、口语、情绪化回应适合语音；'
                                 '长说明、事实、链接和需要精确阅读的内容用文字。不要每句都用语音，'
                                 '回复为空时 voice 必须为 false。')
+            if self.qq_extras:
+                instruction += (
+                    '可选 face_id 填一个 QQ 原生表情编号，不用时填空字符串；'
+                    '可选 poke=true 在文字后戳一戳当前说话人，只在撒娇、回击、被戳或情绪明显时偶尔使用，'
+                    '普通回答不要戳。不要同时使用太多附加动作。\n可选原生表情：'
+                    + json.dumps(QQ_FACES, ensure_ascii=False)
+                )
             if candidates:
                 instruction += (
                     '可从候选里选一张表情：meme_id 填编号；不配图填空字符串。'
@@ -499,6 +522,9 @@ class ChatService:
             decision_kwargs = {'meme_ids': tuple(asset.id for asset in candidates)}
             if self.voice_enabled:
                 decision_kwargs['voice_enabled'] = True
+            if self.qq_extras:
+                decision_kwargs['face_ids'] = tuple(face['id'] for face in QQ_FACES)
+                decision_kwargs['poke_enabled'] = True
             response = call(decision_method, messages, **decision_kwargs)
         elif (candidates or not message.is_directed) and callable(json_method):
             response = call(json_method, messages)
@@ -506,7 +532,7 @@ class ChatService:
             response = call(self.model.complete, messages)
         if not isinstance(response, str):
             return ChatReply()
-        if message.is_directed and not candidates and not self.voice_enabled:
+        if not use_decision and message.is_directed and not candidates and not self.voice_enabled:
             return ChatReply(response.strip()[:800] or None)
         try:
             data = json.loads(response)
@@ -517,6 +543,8 @@ class ChatService:
                              and not plain.startswith(('{', '[', '```')) else None)
         allowed = {'reply', 'meme_id', 'voice'} if self.voice_enabled else (
             {'reply', 'meme_id'} if candidates else {'reply'})
+        if self.qq_extras:
+            allowed.update({'face_id', 'poke'})
         if (not isinstance(data, dict) or 'reply' not in data or not set(data) <= allowed
                 or not isinstance(data['reply'], str)):
             return ChatReply()
@@ -525,7 +553,10 @@ class ChatService:
         image = image if text and isinstance(image, str) and image in {a.id for a in candidates} else None
         voice = data.get('voice', False)
         voice = bool(text and self.voice_enabled and voice is True)
-        return ChatReply(text, image, voice)
+        face_id = data.get('face_id')
+        face_id = face_id if text and isinstance(face_id, str) and face_id in FACE_IDS else None
+        poke = bool(text and self.qq_extras and data.get('poke') is True)
+        return ChatReply(text, image, voice, face_id, poke)
 
     def record_reply(self, message: IncomingMessage, text: str) -> None:
         """Only the delivery boundary may confirm an assistant message."""

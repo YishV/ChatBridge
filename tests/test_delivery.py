@@ -4,7 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome
+from wechat_ai_bridge.message import IncomingMessage, Outcome, ProcessResult
 from wechat_ai_bridge.models.client import ModelError
 from wechat_ai_bridge.qa.service import ChatService
 from wechat_ai_bridge.state.store import StateStore
@@ -36,6 +36,21 @@ class FakeSender:
         if self.error:
             raise self.error
         return self.receipt
+
+
+class ExtraSender(FakeSender):
+    def __init__(self):
+        super().__init__(SendReceipt(True, 'server-1'))
+        self.face_calls = []
+        self.poke_calls = []
+
+    def send_face(self, group_id, face_id):
+        self.face_calls.append((group_id, face_id))
+        return SendReceipt(True, 'face-1')
+
+    def send_poke(self, group_id, user_id):
+        self.poke_calls.append((group_id, user_id))
+        return SendReceipt(True, 'poke-1')
 
 
 class DeliveryTests(unittest.TestCase):
@@ -97,6 +112,17 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(result.delivery, DeliveryOutcome.SKIPPED_NOT_ALLOWED)
         self.assertEqual(sender.calls, [])
         self.assertIsNone(self.store.delivery_status("m1"))
+
+    def test_qq_face_and_poke_are_sent_after_text(self):
+        sender = ExtraSender()
+        service = self.service(sender)
+        result = service._deliver(
+            self.message,
+            ProcessResult(Outcome.ANSWERED, '哼。', face_id='13', poke=True),
+        )
+        self.assertEqual(result.delivery, DeliveryOutcome.CONFIRMED)
+        self.assertEqual(sender.face_calls, [('group-a', '13')])
+        self.assertEqual(sender.poke_calls, [('group-a', 'user-a')])
 
     def test_model_failure_has_no_technical_reply_to_group(self):
         def fail():

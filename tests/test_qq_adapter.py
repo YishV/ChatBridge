@@ -33,7 +33,7 @@ class OneBotServer:
                 owner.calls.append((self.headers.get('Authorization'), body))
                 action = self.path.rstrip('/').rsplit('/', 1)[-1]
                 data = None
-                if action in ('send_group_msg', 'get_login_info'):
+                if action in ('send_group_msg', 'send_private_msg', 'get_login_info'):
                     data = {'message_id': 42, 'user_id': 10001, 'nickname': 'bot'}
                 elif action == 'get_group_list':
                     data = [{'group_id': 123, 'group_name': '测试群'}]
@@ -97,6 +97,15 @@ class QQEventTests(unittest.TestCase):
         }, 999)
         self.assertEqual(message.interaction, 'pat')
         self.assertTrue(message.message_id.startswith('poke:'))
+
+    def test_private_poke_becomes_pat(self):
+        message = map_event({
+            'post_type': 'notice', 'notice_type': 'notify', 'sub_type': 'poke',
+            'user_id': 2, 'target_id': 999, 'time': 123,
+        }, 999)
+        self.assertEqual(message.interaction, 'pat')
+        self.assertFalse(message.is_group)
+        self.assertEqual(message.group_id, 'private:2')
 
     def test_self_message_is_marked(self):
         message = map_event({
@@ -213,6 +222,20 @@ class OneBotClientTests(unittest.TestCase):
             self.assertEqual(server.calls[0][1]['group_id'], 123)
             self.assertEqual(server.calls[1][1]['user_id'], 456)
             self.assertEqual(server.calls[0][1]['name'], 'cover.mp3')
+
+    def test_sends_face_and_poke(self):
+        with OneBotServer() as server:
+            client = OneBotClient(QQSettings(api_url=server.url))
+            self.assertEqual(client.send_group_face('123', '13'), '42')
+            self.assertEqual(client.send_private_face('456', '14'), '42')
+            self.assertEqual(client.send_poke('123', '456'), 'poke')
+            self.assertEqual(client.send_poke('private:456', '456'), 'poke')
+            self.assertEqual(server.calls[0][1]['message'][0], {
+                'type': 'face', 'data': {'id': '13'}})
+            self.assertEqual(server.calls[1][1]['message'][0], {
+                'type': 'face', 'data': {'id': '14'}})
+            self.assertEqual(server.calls[2][1], {'group_id': 123, 'user_id': 456})
+            self.assertEqual(server.calls[3][1], {'user_id': 456})
 
     def test_action_error_is_not_a_receipt(self):
         class FailClient(OneBotClient):
