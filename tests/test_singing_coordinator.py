@@ -61,7 +61,7 @@ class SingingCoordinatorTests(unittest.TestCase):
         )
         coordinator = SingingCoordinator(
             settings, SongLibrary(settings.music_dir), self.queue, self.sender,
-            ack=lambda message, title: f'哼，{title}就交给我吧。',
+            ack=lambda message, title, random=False: f'哼，{title}就交给我吧。',
         )
         message = IncomingMessage('m1', 'private:1', '1', '/翻唱 天空之城', True, is_group=False)
         self.assertTrue(coordinator.handle(message))

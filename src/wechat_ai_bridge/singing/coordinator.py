@@ -81,7 +81,7 @@ class SingingCoordinator:
         ack_text = None
         if self.ack is not None:
             try:
-                ack_text = self.ack(message, song.title)
+                ack_text = self.ack(message, song.title, random=request.query is None)
             except Exception:
                 ack_text = None
         self.sender.send_group_text(
