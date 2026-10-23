@@ -36,6 +36,8 @@ class Settings:
     memory_update_every: int = 3
     memory_summary_every: int = 30
     memory_queue_size: int = 64
+    log_dir: Path = Path('data/runtime/logs')
+    log_level: str = 'INFO'
     voice_enabled: bool = False
     voice_name: str = "zh-CN-XiaoxiaoNeural"
     voice_max_chars: int = 120
@@ -54,6 +56,8 @@ class Settings:
             raise ValueError('长期记忆摘要间隔必须为 0 至 500')
         if type(self.memory_queue_size) is not int or not 1 <= self.memory_queue_size <= 1000:
             raise ValueError('长期记忆队列大小必须为 1 至 1000')
+        if self.log_level not in ('DEBUG', 'INFO', 'WARNING', 'ERROR'):
+            raise ValueError('日志级别必须为 DEBUG/INFO/WARNING/ERROR')
         if (type(self.vision_enabled) is not bool or type(self.vision_window_seconds) is not int
                 or not 30 <= self.vision_window_seconds <= 300):
             raise ValueError('看图开关或关联时间窗口无效')
@@ -135,6 +139,8 @@ class Settings:
             memory_update_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY', '3')),
             memory_summary_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY', '30')),
             memory_queue_size=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE', '64')),
+            log_dir=Path(os.getenv('WECHAT_AI_BRIDGE_LOG_DIR', 'data/runtime/logs')),
+            log_level=os.getenv('WECHAT_AI_BRIDGE_LOG_LEVEL', 'INFO').strip().upper(),
             voice_enabled=voice_enabled in ('true', '1'),
             voice_name=os.getenv('WECHAT_AI_BRIDGE_VOICE_NAME', 'zh-CN-XiaoxiaoNeural').strip(),
             voice_max_chars=int(os.getenv('WECHAT_AI_BRIDGE_VOICE_MAX_CHARS', '120')),

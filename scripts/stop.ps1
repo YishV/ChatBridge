@@ -11,7 +11,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('qq', 'wechat', 'singing', 'all')]
+    [ValidateSet('qq', 'wechat', 'singing', 'panel', 'all')]
     [string]$Target = 'qq'
 )
 
@@ -112,6 +112,8 @@ if ($Target -eq 'qq') {
     Stop-WeChat
 } elseif ($Target -eq 'singing') {
     Stop-Matching '翻唱 worker' 'wechat_ai_bridge\s+singing-worker'
+} elseif ($Target -eq 'panel') {
+    Stop-Matching '运行面板' 'wechat_ai_bridge\s+panel'
 } else {
     Stop-QQ
     Stop-WeChat

@@ -43,6 +43,8 @@ notepad .env
 | `WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY` | `3` | 每 N 轮私聊抽取一次记忆 |
 | `WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY` | `30` | 每 N 轮生成一次摘要；0 关闭 |
 | `WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE` | `64` | 记忆后台队列上限 |
+| `WECHAT_AI_BRIDGE_LOG_DIR` | `data/runtime/logs` | 轮转日志目录 |
+| `WECHAT_AI_BRIDGE_LOG_LEVEL` | `INFO` | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
 
 微信私聊额外配置在 `data/runtime/native-hook/gateway.json`：
 

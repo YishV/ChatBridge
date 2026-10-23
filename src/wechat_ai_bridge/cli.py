@@ -340,6 +340,9 @@ def main() -> None:
     qq.add_argument('--quiet-console', action='store_true', help='不打印群消息正文和回复')
     singing_worker = commands.add_parser('singing-worker', help='消费曲库翻唱队列')
     singing_worker.add_argument('--once', action='store_true', help='只处理一个任务')
+    panel = commands.add_parser('panel', help='本机运行状态与私聊记忆管理面板')
+    panel.add_argument('--host', default='127.0.0.1', help='只能绑定本机回环地址')
+    panel.add_argument('--port', type=int, default=8765, help='面板端口，默认 8765')
     contacts = commands.add_parser('contacts', help='本机列出微信联系人 wxid，用于私聊白名单')
     contacts.add_argument('--query', help='按 wxid、备注或昵称过滤')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")
@@ -358,6 +361,12 @@ def main() -> None:
             run_cover(args, emit)
             return
         settings = Settings.from_env()
+        from wechat_ai_bridge.logging_setup import configure_logging
+        configure_logging(settings.log_dir, settings.log_level)
+        if args.command == 'panel':
+            from wechat_ai_bridge.panel import serve
+            serve(settings, args.host, args.port)
+            return
         if args.command == 'singing-worker':
             from wechat_ai_bridge.singing.config import SingingSettings
             from wechat_ai_bridge.singing.queue import SingingQueue

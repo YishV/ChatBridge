@@ -81,6 +81,7 @@ uv run --extra native wechat-ai-bridge qq run
 - [QQ 原生表情与戳一戳](docs/qq-extras.md)
 - [曲库翻唱](docs/singing-library.md)
 - [私聊长期记忆](docs/memory.md)
+- [本机运行面板](docs/panel.md)
 - [文字聊天验收](docs/chat-acceptance.md)
 - [需求](requirements.md) / [验收流程](workflow.md)
 
@@ -90,6 +91,7 @@ uv run --extra native wechat-ai-bridge qq run
 wechat-ai-bridge run            微信网关
 wechat-ai-bridge qq run         QQ 网关
 wechat-ai-bridge singing-worker 曲库翻唱 worker
+wechat-ai-bridge panel          本机状态与记忆面板
 ```
 
 - 微信状态库：`data/runtime/chat-state.sqlite3`

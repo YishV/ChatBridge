@@ -26,6 +26,8 @@ class MemoryItem:
     confidence: float
     importance: float
     updated_at: str
+    platform: str = ''
+    user_key: str = ''
 
 
 def _now() -> str:
@@ -198,9 +200,55 @@ class MemoryStore:
                     id=int(row['id']), kind=row['kind'], key=row['memory_key'],
                     content=row['content'], confidence=float(row['confidence']),
                     importance=float(row['importance']), updated_at=row['updated_at'],
+                    platform=platform, user_key=user_key,
                 )
                 for row in rows
             ]
+        finally:
+            connection.close()
+
+    def list_all(self, query: str = '', limit: int = 200) -> list[MemoryItem]:
+        limit = max(1, min(int(limit), 500))
+        term = str(query).strip()
+        connection = self._connect()
+        try:
+            if term:
+                rows = connection.execute(
+                    'SELECT id, platform, user_key, kind, memory_key, content, confidence, '
+                    'importance, updated_at FROM memories '
+                    'WHERE memory_key LIKE ? OR content LIKE ? '
+                    'ORDER BY updated_at DESC, id DESC LIMIT ?',
+                    (f'%{term}%', f'%{term}%', limit),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    'SELECT id, platform, user_key, kind, memory_key, content, confidence, '
+                    'importance, updated_at FROM memories '
+                    'ORDER BY updated_at DESC, id DESC LIMIT ?',
+                    (limit,),
+                ).fetchall()
+            return [
+                MemoryItem(
+                    id=int(row['id']), kind=row['kind'], key=row['memory_key'],
+                    content=row['content'], confidence=float(row['confidence']),
+                    importance=float(row['importance']), updated_at=row['updated_at'],
+                    platform=row['platform'], user_key=row['user_key'],
+                )
+                for row in rows
+            ]
+        finally:
+            connection.close()
+
+    def delete_by_id(self, memory_id: int) -> bool:
+        if type(memory_id) is not int or memory_id < 1:
+            raise ValueError('memory_id_invalid')
+        connection = self._connect()
+        try:
+            with connection:
+                cursor = connection.execute(
+                    'DELETE FROM memories WHERE id=?', (memory_id,)
+                )
+                return cursor.rowcount == 1
         finally:
             connection.close()
 
