@@ -129,7 +129,24 @@ function Start-NapCatIfNeeded {
             return
         }
         Write-Step "启动 NapCat：$NapCatHome"
-        Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', "`"$launcher`"") -WorkingDirectory $NapCatHome
+        # QQ 的富媒体上传不走本机代理；继承 127.0.0.1 代理会导致语音/图片发送报
+        # rich media transfer failed。只对 NapCat 子进程清空代理，不改变网关进程。
+        $proxyNames = @('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+                        'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy')
+        $savedProxy = @{}
+        foreach ($name in $proxyNames) {
+            $savedProxy[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+        }
+        try {
+            Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', "`"$launcher`"") -WorkingDirectory $NapCatHome
+        } finally {
+            foreach ($name in $proxyNames) {
+                if ($null -ne $savedProxy[$name]) {
+                    Set-Item -Path "Env:$name" -Value $savedProxy[$name]
+                }
+            }
+        }
     } else {
         Write-Step 'NapCat 已在运行'
     }
