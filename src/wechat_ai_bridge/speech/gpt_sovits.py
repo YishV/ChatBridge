@@ -19,7 +19,7 @@ _MAX_AUDIO_BYTES = 16 * 1024 * 1024
 @dataclass(frozen=True)
 class GPTSoVITSSettings:
     base_url: str = 'http://127.0.0.1:9880'
-    ref_audio_path: Path = Path('data/runtime/gpt-sovits/reference.wav')
+    ref_audio_path: Path = Path('data/voices/example/reference.wav')
     prompt_text: str = ''
     prompt_lang: str = 'zh'
     text_lang: str = 'zh'

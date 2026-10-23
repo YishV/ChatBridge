@@ -68,6 +68,7 @@ data/runtime/downloads          仅 -IncludeDownloads
 ```text
 data/music                    曲库
 data/memes                    表情包（QQ/微信共享）
+data/voices                   音色参考、权重、训练样本
 state/stickers                表情素材
 data/runtime/gpt-sovits       音色参考、训练样本、音色缓存
 tools/RVC/assets/weights      RVC 模型
@@ -97,6 +98,7 @@ tools/GPT-SoVITS-v2          权重和 runtime，删了恢复成本高
 data/runtime/native-hook     微信登录凭据和 gateway 配置
 data/music                   曲库
 data/memes                   收藏的表情包
+data/voices                  音色参考、权重和训练样本
 ```
 
 这些不在清理目标里，脚本不会碰。

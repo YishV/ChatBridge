@@ -35,6 +35,7 @@ Set-Location $Root
 $Protected = @(
     'data/music',
     'data/memes',
+    'data/voices',
     'data/runtime/memes',
     'data/runtime/gpt-sovits',
     'tools/RVC/assets/weights',

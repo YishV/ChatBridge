@@ -32,7 +32,7 @@ class QQSettings:
     spontaneous_cooldown_seconds: int = 5
     voice_enabled: bool = True
     gpt_sovits_url: str = 'http://127.0.0.1:9880'
-    gpt_ref_audio: Path = Path('data/runtime/gpt-sovits/reference.wav')
+    gpt_ref_audio: Path = Path('data/voices/example/reference.wav')
     gpt_prompt_text: str = ''
     gpt_prompt_lang: str = 'zh'
     gpt_text_lang: str = 'zh'
@@ -107,7 +107,7 @@ class QQSettings:
             voice_enabled=_bool('QQ_VOICE_ENABLED', 'true'),
             gpt_sovits_url=os.getenv('QQ_GPT_SOVITS_URL', 'http://127.0.0.1:9880').strip(),
             gpt_ref_audio=Path(os.getenv('QQ_GPT_SOVITS_REF_AUDIO',
-                                         'data/runtime/gpt-sovits/reference.wav')),
+                                         'data/voices/example/reference.wav')),
             gpt_prompt_text=os.getenv('QQ_GPT_SOVITS_PROMPT_TEXT', '').strip(),
             gpt_prompt_lang=os.getenv('QQ_GPT_SOVITS_PROMPT_LANG', 'zh').strip(),
             gpt_text_lang=os.getenv('QQ_GPT_SOVITS_TEXT_LANG', 'zh').strip(),

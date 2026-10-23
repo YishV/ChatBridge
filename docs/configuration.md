@@ -86,7 +86,7 @@ uv run --extra native wechat-ai-bridge contacts --query 对方昵称
 | `QQ_SPONTANEOUS_COOLDOWN_SECONDS` | `5` | 自然接话等待 |
 | `QQ_VOICE_ENABLED` | `true` | QQ 语音条开关 |
 | `QQ_GPT_SOVITS_URL` | `http://127.0.0.1:9880` | 本机 GPT-SoVITS |
-| `QQ_GPT_SOVITS_REF_AUDIO` | `data/runtime/gpt-sovits/reference.wav` | 参考音频绝对路径 |
+| `QQ_GPT_SOVITS_REF_AUDIO` | `data/voices/example/reference.wav` | 参考音频绝对路径 |
 | `QQ_GPT_SOVITS_PROMPT_TEXT` | 空 | 参考音频对应文字 |
 | `QQ_GPT_SOVITS_PROMPT_LANG` | `zh` | 参考音频语言 |
 | `QQ_GPT_SOVITS_TEXT_LANG` | `zh` | 合成语言 |

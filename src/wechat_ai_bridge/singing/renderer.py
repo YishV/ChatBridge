@@ -70,7 +70,10 @@ class CoverRenderer:
         chunks.mkdir(exist_ok=True)
         converted.mkdir(exist_ok=True)
         model = self.settings.rvc_model
-        model_path = Path(model) if Path(model).is_absolute() else self.settings.rvc_home / model
+        model_path = Path(model)
+        if not model_path.is_absolute():
+            project_path = Path.cwd() / model_path
+            model_path = project_path if project_path.is_file() else self.settings.rvc_home / model_path
         for start in range(0, 600, 30):
             chunk = chunks / f'v{start // 30}.wav'
             self._run_checked([

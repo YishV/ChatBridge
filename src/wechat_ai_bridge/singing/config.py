@@ -27,7 +27,7 @@ class SingingSettings:
     rvc_python: Path = Path(
         'tools/GPT-SoVITS-v2/GPT-SoVITS-v2-240821/runtime/python.exe'
     )
-    rvc_model: str = 'assets/weights/da_fei_yu_rvc.pth'
+    rvc_model: str = 'data/voices/example/rvc.pth'
     ffmpeg: Path = Path(
         'tools/GPT-SoVITS-v2/GPT-SoVITS-v2-240821/ffmpeg.exe'
     )
@@ -83,7 +83,7 @@ class SingingSettings:
                 'tools/GPT-SoVITS-v2/GPT-SoVITS-v2-240821/runtime/python.exe',
             )),
             rvc_model=os.getenv(
-                'SINGING_RVC_MODEL', 'assets/weights/da_fei_yu_rvc.pth'
+                'SINGING_RVC_MODEL', 'data/voices/example/rvc.pth'
             ).strip(),
             ffmpeg=Path(os.getenv(
                 'SINGING_FFMPEG',

@@ -98,9 +98,9 @@ QQ_VOICE_MAX_CHARS=120
 当前本地位置：
 
 ```text
-data/runtime/gpt-sovits/dataset/train/audio/
-data/runtime/gpt-sovits/dataset/train/metadata.csv
-data/runtime/gpt-sovits/reference.wav
+data/voices/xiaoai/dataset/train/audio/
+data/voices/xiaoai/dataset/train/metadata.csv
+data/voices/xiaoai/reference.wav
 ```
 
 许可为 **CC BY-NC 4.0**，仅限非商业使用；转载或改编需署名 **尹紫鹭幻想社（Bilibili）**，并附数据集链接和许可链接。商业用途需另行取得授权。数据集为合成语音，不等同于 DeepSeek 官方音色。
