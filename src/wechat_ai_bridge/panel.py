@@ -12,6 +12,7 @@ from wechat_ai_bridge.health import collect_health
 from wechat_ai_bridge.logging_setup import tail_log
 from wechat_ai_bridge.memory import MemoryStore
 from wechat_ai_bridge.settings import Settings
+from wechat_ai_bridge.state.store import StateStore
 
 
 _STYLE = """
@@ -36,8 +37,12 @@ pre{white-space:pre-wrap;word-break:break-all;background:#161b22;color:#d7dde5;p
 
 def _page(settings: Settings, *, query: str = '') -> str:
     health = collect_health(settings)
-    store = MemoryStore(settings.memory_db)
-    memories = store.list_all(query=query, limit=300)
+    memory_store = MemoryStore(settings.memory_db)
+    memories = memory_store.list_all(query=query, limit=300)
+    try:
+        messages = StateStore(settings.state_db).recent_messages(limit=100)
+    except (OSError, ValueError):
+        messages = []
     ports = health['ports']
     cards = ''.join(
         f'<div class="card"><div class="muted">{html.escape(label)}</div>'
@@ -65,6 +70,16 @@ def _page(settings: Settings, *, query: str = '') -> str:
         '<button class="danger">删除</button></form></td></tr>'
         for item in memories
     ) or '<tr><td colspan="8" class="muted">没有匹配的记忆。</td></tr>'
+    message_rows = ''.join(
+        '<tr>'
+        f'<td>{html.escape(str(item.get("created_at", "")))}</td>'
+        f'<td>{html.escape(str(item.get("group_id", "")))}</td>'
+        f'<td>{html.escape(str(item.get("role", "")))}</td>'
+        f'<td>{html.escape(str(item.get("sender_name") or ""))}</td>'
+        f'<td>{html.escape(str(item.get("content", ""))[:300])}</td>'
+        '</tr>'
+        for item in messages
+    ) or '<tr><td colspan="5" class="muted">还没有持久化消息。</td></tr>'
     logs = '\n'.join(tail_log(settings.log_dir, lines=200)) or '还没有日志。'
     query_html = html.escape(query)
     return f"""<!doctype html>
@@ -97,6 +112,10 @@ def _page(settings: Settings, *, query: str = '') -> str:
 <input name="user_key" placeholder="private:123456" style="flex:1">
 <button class="danger">清空这个用户的记忆和摘要</button>
 </form>
+
+<h2>最近消息</h2>
+<table><thead><tr><th>时间</th><th>会话</th><th>角色</th><th>发送者</th><th>内容</th></tr></thead>
+<tbody>{message_rows}</tbody></table>
 
 <h2>日志尾部</h2>
 <pre>{html.escape(logs)}</pre>

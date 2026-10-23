@@ -201,13 +201,15 @@ class NativeSender:
 
 class GatewayRunner:
     def __init__(self, reader, native, service, store, account_id: str, groups: frozenset[str], *, clock=time.time,
-                 image_inbox=None):
+                 image_inbox=None, meme_collector=None, image_resolver=None):
         self.reader, self.native, self.service, self.store = reader, native, service, store
         self.account_id, self.groups = account_id, groups
         self.cursors: dict[str, dict[str, int]] = {}
         self.clock = clock
         self.started_at = 0.0
         self.image_inbox = image_inbox
+        self.meme_collector = meme_collector
+        self.image_resolver = image_resolver
 
     def initialize(self):
         self.native.health()
@@ -274,6 +276,22 @@ class GatewayRunner:
                 cursors[row.shard] = max(cursors.get(row.shard, 0), row.local_id)
                 if row.create_time < self.started_at - 30:
                     continue
+                if (self.meme_collector is not None and self.image_resolver is not None
+                        and row.sender_id != self.account_id
+                        and row.local_type in (3, 47, (8 << 32) | 49)):
+                    try:
+                        from wechat_ai_bridge.vision.resolver import ImageReference
+                        ref = ImageReference(
+                            group, row.sender_id, row.shard, row.local_id,
+                            row.server_id, row.create_time, local_type=row.local_type,
+                        )
+                        image = self.image_resolver.resolve(ref)
+                        self.meme_collector.submit_bytes(
+                            image.data, platform='wechat',
+                            private=not group.endswith('@chatroom'),
+                        )
+                    except Exception:
+                        pass
                 if self.image_inbox is not None and group.endswith('@chatroom') and row.local_type in (3, 47, (8 << 32) | 49):
                     # Media has no startup grace period: never select a delayed
                     # row created before this process started as a fresh image.

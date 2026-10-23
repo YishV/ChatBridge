@@ -13,6 +13,7 @@ from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
 from wechat_ai_bridge.media.cover import add_cover_parser, run_cover
 from wechat_ai_bridge.media.kits import CoverError
 from wechat_ai_bridge.media.memes import MemeCatalog, MemeError
+from wechat_ai_bridge.media.local_memes import CompositeMemeCatalog, LocalMemeLibrary
 from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT
 from wechat_ai_bridge.qa.identity import load_identity_key
 from wechat_ai_bridge.qq import QQGateway, QQSettings, OneBotClient, OneBotError, QQSender
@@ -53,7 +54,11 @@ def create_weather_client(settings):
 def create_meme_catalog(settings, *, outgoing=None):
     if not settings.memes_enabled:
         return None
-    return MemeCatalog(settings.meme_cache_dir, outgoing or Path('state/stickers/outgoing'))
+    official = MemeCatalog(settings.meme_cache_dir, outgoing or Path('state/stickers/outgoing'))
+    return CompositeMemeCatalog(
+        official, LocalMemeLibrary(settings.meme_library_dir),
+        local_first=settings.meme_local_first,
+    )
 
 
 def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSET, vision=None,
@@ -222,12 +227,21 @@ def run_qq(args, settings, emit):
             meme_recent_count=settings.meme_recent_count,
             voice_sender=sender if qq.voice_enabled else None,
             voice_policy='model')
+        meme_collector = None
+        if settings.memes_enabled and settings.meme_collect_enabled:
+            from wechat_ai_bridge.media.meme_collector import MemeCollector
+            from wechat_ai_bridge.media.local_memes import LocalMemeLibrary
+            meme_collector = MemeCollector(
+                settings, LocalMemeLibrary(settings.meme_library_dir),
+                processor.chat.model,
+            )
         gateway = QQGateway(qq, client, service,
                             vision=processor.chat.vision if qq.vision_enabled else None,
-                            singing=singing)
+                            singing=singing, meme_collector=meme_collector)
         with SingleInstance(Path('data/runtime/qq.gateway.lock')):
             emit({'status': 'qq_started', 'groups': len(qq.allowed_groups),
                   'privates': len(qq.private_users), 'memeAssets': len(catalog.assets) if catalog else 0,
+                  'memeCollectEnabled': meme_collector is not None,
                   'singingEnabled': singing is not None,
                   'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
             try:
@@ -265,11 +279,23 @@ def run_gateway(args, settings, store):
             voice_sender = create_voice_sender(settings, reader, health.get('pid'))
         except Exception:
             voice_sender = None
-    vision = (VisionInbox(NativeImageResolver(reader, config, health_check=native.health), store,
+    image_resolver = (
+        NativeImageResolver(reader, config, health_check=native.health)
+        if settings.vision_enabled or settings.meme_collect_enabled else None
+    )
+    vision = (VisionInbox(image_resolver, store,
         config.account_id, config.groups, window_seconds=settings.vision_window_seconds)
         if settings.vision_enabled else None)
     processor = create_processor(settings, store, history_groups=config.conversations, meme_catalog=active_catalog, vision=vision)
     processor.chat._load_system_prompt()
+    meme_collector = None
+    if settings.memes_enabled and settings.meme_collect_enabled:
+        from wechat_ai_bridge.media.meme_collector import MemeCollector
+        from wechat_ai_bridge.media.local_memes import LocalMemeLibrary
+        meme_collector = MemeCollector(
+            settings, LocalMemeLibrary(settings.meme_library_dir),
+            processor.chat.model,
+        )
     for group in config.conversations:
         reader.snapshot(group)
     status = {"gatewayReady": health["ready"], "clientVersion": health["version"],
@@ -279,6 +305,7 @@ def run_gateway(args, settings, store):
         "promptReady": True, "naturalBatchSeconds": settings.spontaneous_cooldown_seconds,
         'historyRestored': processor.chat.restored_messages, 'historyContextMessages': settings.history_context_messages,
         'memesEnabled': settings.memes_enabled, 'memeAssets': len(catalog.assets) if catalog else 0,
+        'memeCollectEnabled': meme_collector is not None,
         'memeNativeReady': health.get('nativeStickerSend') is True,
         'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None,
         'weatherEnabled': settings.weather_enabled, 'weatherCacheSeconds': settings.weather_cache_seconds,
@@ -303,7 +330,9 @@ def run_gateway(args, settings, store):
         elif settings.memes_enabled and not status['memeNativeReady']:
             console.notice('本机组件暂不支持表情发送，继续文字聊天')
         runner = GatewayRunner(reader, native, service, store, config.account_id,
-                               config.conversations, image_inbox=vision)
+                               config.conversations, image_inbox=vision,
+                               meme_collector=meme_collector,
+                               image_resolver=image_resolver)
         runner.initialize()
         console.notice("网关已启动：收到消息和发送结果会实时打印到终端，不写入日志文件")
         emit({"status": "running", **status, "historyReplied": False})

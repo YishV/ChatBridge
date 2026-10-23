@@ -123,6 +123,19 @@ class StateStore:
                 self._insert_chat(message_id, group_id, "user", validated)
             return claimed
 
+    def recent_messages(self, limit: int = 100) -> list[dict]:
+        """Read latest persisted messages for the local read-only panel."""
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise ValueError('invalid_history_limit')
+        cursor = self.connection.execute(
+            'SELECT id, group_id, role, sender_name, content, created_at '
+            'FROM chat_history ORDER BY id DESC LIMIT ?',
+            (limit,),
+        )
+        columns = [column[0] for column in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor]
+        return list(reversed(rows))
+
     def clear_chat_history(self, group_id: str) -> int:
         """Delete one conversation's persisted transcript without touching other users."""
         if not isinstance(group_id, str) or not group_id.strip():

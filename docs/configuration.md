@@ -30,6 +30,12 @@ notepad .env
 | `WECHAT_AI_BRIDGE_MEME_CACHE_DIR` | `data/runtime/memes` | 素材索引/缓存 |
 | `WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS` | `60` | 每群图片冷却 |
 | `WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` | `5` | 最近避重张数 |
+| `WECHAT_AI_BRIDGE_MEME_COLLECT_ENABLED` | `false` | 自动收藏聊天表情包 |
+| `WECHAT_AI_BRIDGE_MEME_COLLECT_PRIVATE` | `true` | 是否收藏私聊图片 |
+| `WECHAT_AI_BRIDGE_MEME_COLLECT_MAX_PER_DAY` | `20` | 每天收藏上限 |
+| `WECHAT_AI_BRIDGE_MEME_COLLECT_MIN_SCORE` | `0.75` | AI 表情包置信度下限 |
+| `WECHAT_AI_BRIDGE_MEME_LOCAL_FIRST` | `true` | 回复优先本地收藏 |
+| `WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR` | `data/runtime/memes/library` | QQ/微信共享本地库 |
 | `WECHAT_AI_BRIDGE_WEATHER_ENABLED` | `true` | 天气开关 |
 | `WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS` | `5` | 1～30 秒 |
 | `WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS` | `600` | 0～3600 秒 |

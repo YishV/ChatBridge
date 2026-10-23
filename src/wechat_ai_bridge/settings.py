@@ -31,6 +31,12 @@ class Settings:
     meme_cache_dir: Path = Path('data/runtime/memes')
     meme_cooldown_seconds: int = 60
     meme_recent_count: int = 5
+    meme_collect_enabled: bool = False
+    meme_collect_private: bool = True
+    meme_collect_max_per_day: int = 20
+    meme_collect_min_score: float = 0.75
+    meme_local_first: bool = True
+    meme_library_dir: Path = Path('data/runtime/memes/library')
     memory_enabled: bool = True
     memory_db: Path = Path('data/runtime/memory.sqlite3')
     memory_update_every: int = 3
@@ -70,6 +76,14 @@ class Settings:
                 or not 0 <= self.meme_cooldown_seconds <= 3600
                 or type(self.meme_recent_count) is not int or not 1 <= self.meme_recent_count <= 20):
             raise ValueError('表情包开关或频率配置无效')
+        if (type(self.meme_collect_enabled) is not bool or type(self.meme_collect_private) is not bool
+                or type(self.meme_collect_max_per_day) is not int
+                or not 1 <= self.meme_collect_max_per_day <= 200
+                or isinstance(self.meme_collect_min_score, bool)
+                or not isinstance(self.meme_collect_min_score, (int, float))
+                or not 0 <= self.meme_collect_min_score <= 1
+                or type(self.meme_local_first) is not bool):
+            raise ValueError('表情包收藏配置无效')
         if type(self.history_context_messages) is not int or not 1 <= self.history_context_messages <= 200:
             raise ValueError('聊天恢复条数必须为 1 至 200')
         if (type(self.voice_enabled) is not bool
@@ -97,6 +111,15 @@ class Settings:
         memes_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMES_ENABLED', 'true').strip().lower()
         if memes_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('表情包开关必须为 true 或 false')
+        meme_collect_enabled = os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_ENABLED', 'false').strip().lower()
+        if meme_collect_enabled not in ('true', 'false', '1', '0'):
+            raise ValueError('表情包收藏开关必须为 true 或 false')
+        meme_collect_private = os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_PRIVATE', 'true').strip().lower()
+        if meme_collect_private not in ('true', 'false', '1', '0'):
+            raise ValueError('私聊表情包收藏开关必须为 true 或 false')
+        meme_local_first = os.getenv('WECHAT_AI_BRIDGE_MEME_LOCAL_FIRST', 'true').strip().lower()
+        if meme_local_first not in ('true', 'false', '1', '0'):
+            raise ValueError('本地表情包优先开关必须为 true 或 false')
         memory_enabled = os.getenv('WECHAT_AI_BRIDGE_MEMORY_ENABLED', 'true').strip().lower()
         if memory_enabled not in ('true', 'false', '1', '0'):
             raise ValueError('长期记忆开关必须为 true 或 false')
@@ -134,6 +157,12 @@ class Settings:
             meme_cache_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_CACHE_DIR', 'data/runtime/memes')),
             meme_cooldown_seconds=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS', '60')),
             meme_recent_count=int(os.getenv('WECHAT_AI_BRIDGE_MEME_RECENT_COUNT', '5')),
+            meme_collect_enabled=meme_collect_enabled in ('true', '1'),
+            meme_collect_private=meme_collect_private in ('true', '1'),
+            meme_collect_max_per_day=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_MAX_PER_DAY', '20')),
+            meme_collect_min_score=float(os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_MIN_SCORE', '0.75')),
+            meme_local_first=meme_local_first in ('true', '1'),
+            meme_library_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR', 'data/runtime/memes/library')),
             memory_enabled=memory_enabled in ('true', '1'),
             memory_db=Path(os.getenv('WECHAT_AI_BRIDGE_MEMORY_DB', 'data/runtime/memory.sqlite3')),
             memory_update_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY', '3')),

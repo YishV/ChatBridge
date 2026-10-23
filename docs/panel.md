@@ -35,6 +35,7 @@ NapCat：3000
 GPT-SoVITS：9880
 翻唱队列：queued / running / failed / done
 私聊记忆：条数、平台、会话、内容、重要度
+最近消息：最近 100 条持久化聊天记录
 日志尾部：最近 200 行
 ```
 
