@@ -18,7 +18,7 @@ WECHAT_AI_BRIDGE_MEME_COLLECT_MIN_SCORE=0.75
 # 回复时优先使用本地收藏
 WECHAT_AI_BRIDGE_MEME_LOCAL_FIRST=true
 # 本地库目录
-WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR=data/runtime/memes/library
+WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR=data/memes/library
 ```
 
 改完重启微信网关或 QQ 网关。
@@ -46,7 +46,7 @@ score >= 配置阈值
 ## 共享库
 
 ```text
-data/runtime/memes/library/
+data/memes/library/
   blobs/<sha256>.jpg
   index.sqlite3
 ```
@@ -80,13 +80,13 @@ Web 页面只展示运行状态、日志、最近消息和私聊记忆；表情�
 查看文件：
 
 ```powershell
-dir data\runtime\memes\library\blobs
+dir data\memes\library\blobs
 ```
 
 清空本地收藏：
 
 ```powershell
-Remove-Item -Recurse -Force data\runtime\memes\library
+Remove-Item -Recurse -Force data\memes\library
 ```
 
 下次启动会重新创建空库。

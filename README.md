@@ -81,6 +81,7 @@ uv run --extra native wechat-ai-bridge qq run
 - [QQ 原生表情与戳一戳](docs/qq-extras.md)
 - [曲库翻唱](docs/singing-library.md)
 - [本地表情包收藏](docs/meme-collection.md)
+- [清理缓存和数据库](docs/cleanup.md)
 - [私聊长期记忆](docs/memory.md)
 - [本机运行面板](docs/panel.md)
 - [文字聊天验收](docs/chat-acceptance.md)

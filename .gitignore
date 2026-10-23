@@ -18,6 +18,8 @@ logs/
 data/runtime/
 data/music/*
 !data/music/README.md
+data/memes/
+data/backups/
 state/stickers/outgoing/
 /tools/NapCat.Shell/
 

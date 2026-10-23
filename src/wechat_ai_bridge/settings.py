@@ -28,7 +28,7 @@ class Settings:
     model_max_tokens: int = 1200
     history_context_messages: int = 50
     memes_enabled: bool = True
-    meme_cache_dir: Path = Path('data/runtime/memes')
+    meme_cache_dir: Path = Path('data/memes')
     meme_cooldown_seconds: int = 60
     meme_recent_count: int = 5
     meme_collect_enabled: bool = False
@@ -36,7 +36,7 @@ class Settings:
     meme_collect_max_per_day: int = 20
     meme_collect_min_score: float = 0.75
     meme_local_first: bool = True
-    meme_library_dir: Path = Path('data/runtime/memes/library')
+    meme_library_dir: Path = Path('data/memes/library')
     memory_enabled: bool = True
     memory_db: Path = Path('data/runtime/memory.sqlite3')
     memory_update_every: int = 3
@@ -154,7 +154,7 @@ class Settings:
             model_max_tokens=model_max_tokens,
             history_context_messages=int(os.getenv('WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES', '50')),
             memes_enabled=memes_enabled in ('true', '1'),
-            meme_cache_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_CACHE_DIR', 'data/runtime/memes')),
+            meme_cache_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_CACHE_DIR', 'data/memes')),
             meme_cooldown_seconds=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS', '60')),
             meme_recent_count=int(os.getenv('WECHAT_AI_BRIDGE_MEME_RECENT_COUNT', '5')),
             meme_collect_enabled=meme_collect_enabled in ('true', '1'),
@@ -162,7 +162,7 @@ class Settings:
             meme_collect_max_per_day=int(os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_MAX_PER_DAY', '20')),
             meme_collect_min_score=float(os.getenv('WECHAT_AI_BRIDGE_MEME_COLLECT_MIN_SCORE', '0.75')),
             meme_local_first=meme_local_first in ('true', '1'),
-            meme_library_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR', 'data/runtime/memes/library')),
+            meme_library_dir=Path(os.getenv('WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR', 'data/memes/library')),
             memory_enabled=memory_enabled in ('true', '1'),
             memory_db=Path(os.getenv('WECHAT_AI_BRIDGE_MEMORY_DB', 'data/runtime/memory.sqlite3')),
             memory_update_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY', '3')),

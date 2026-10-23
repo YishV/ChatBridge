@@ -161,6 +161,10 @@ class LocalMemeLibrary:
         for row in self._rows():
             path = Path(row['path'])
             if not path.is_file():
+                # The library may have been moved (for example runtime/memes →
+                # data/memes); keep the indexed blob usable by its basename.
+                path = self.blobs / path.name
+            if not path.is_file():
                 continue
             try:
                 tags = tuple(json.loads(row['tags']))
