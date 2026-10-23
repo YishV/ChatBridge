@@ -127,12 +127,17 @@ function Start-GptSoVits {
 function Start-NapCatIfNeeded {
     $running = Get-Process -Name 'NapCatWinBootMain' -ErrorAction SilentlyContinue
     if (-not $running) {
-        $launcher = Join-Path $NapCatHome 'launcher-user.bat'
+        # NapCat 注入 QQ 需要管理员权限：launcher.bat 会自查并用 UAC 提权，
+        # launcher-user.bat 不提权，注入后 QQ 9.9.33 会在 QQNT.dll 里断点崩溃。
+        $launcher = Join-Path $NapCatHome 'launcher.bat'
         if (-not (Test-Path -LiteralPath $launcher)) {
-            Write-Warning "未找到 NapCat 启动器：$launcher；跳过拉起 NapCat。"
+            $launcher = Join-Path $NapCatHome 'launcher-user.bat'
+        }
+        if (-not (Test-Path -LiteralPath $launcher)) {
+            Write-Warning "未找到 NapCat 启动器：$NapCatHome；跳过拉起 NapCat。"
             return
         }
-        Write-Step "启动 NapCat：$NapCatHome"
+        Write-Step "启动 NapCat：$NapCatHome（如弹出 UAC 请允许）"
         # QQ 的富媒体上传不走本机代理；继承 127.0.0.1 代理会导致语音/图片发送报
         # rich media transfer failed。只对 NapCat 子进程清空代理，不改变网关进程。
         $proxyNames = @('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
