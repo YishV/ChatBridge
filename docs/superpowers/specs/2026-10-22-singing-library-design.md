@@ -251,7 +251,7 @@ SINGING_PITCH=12
 新增命令：
 
 ```text
-wechat-ai-bridge singing-worker
+chatbridge singing-worker
 ```
 
 启动脚本：
@@ -263,7 +263,7 @@ wechat-ai-bridge singing-worker
 ## 9. 代码边界
 
 ```text
-src/wechat_ai_bridge/singing/
+src/chat_bridge/singing/
   library.py       扫描、匹配、随机
   intent.py        指令/自然语言解析
   queue.py         SQLite 队列

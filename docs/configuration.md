@@ -11,46 +11,46 @@ notepad .env
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `WECHAT_AI_BRIDGE_MODEL_API_KEY` | 空 | DeepSeek 密钥，必填 |
-| `WECHAT_AI_BRIDGE_MODEL_NAME` | `deepseek-flash` | 模型名 |
-| `WECHAT_AI_BRIDGE_MODEL_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容地址 |
-| `WECHAT_AI_BRIDGE_ALLOWED_MODEL_HOSTS` | `api.deepseek.com` | 允许的模型主机 |
-| `WECHAT_AI_BRIDGE_MODEL_THINKING` | `disabled` | `enabled`/`disabled` |
-| `WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS` | `45` | 1～120 秒 |
-| `WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS` | `1200` | 128～8192 |
-| `WECHAT_AI_BRIDGE_STATE_DB` | `data/runtime/chat-state.sqlite3` | 微信状态库 |
-| `WECHAT_AI_BRIDGE_GATEWAY_CONFIG` | `data/runtime/native-hook/gateway.json` | 微信 hook 配置 |
-| `WECHAT_AI_BRIDGE_PROMPT_FILE` | `config/persona.md` | 人设文件 |
-| `WECHAT_AI_BRIDGE_PARTICIPATION_MODE` | `natural` | `natural`/`mentions` |
-| `WECHAT_AI_BRIDGE_COOLDOWN_SECONDS` | `5` | 直接互动冷却 |
-| `WECHAT_AI_BRIDGE_SPONTANEOUS_COOLDOWN_SECONDS` | `5` | 自然接话合并等待，最少 5 |
-| `WECHAT_AI_BRIDGE_HOURLY_QUOTA` | `60` | 每群每小时模型调用上限 |
-| `WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES` | `50` | 恢复最近条数 1～200 |
-| `WECHAT_AI_BRIDGE_MEMES_ENABLED` | `true` | 表情包总开关 |
-| `WECHAT_AI_BRIDGE_MEME_CACHE_DIR` | `data/memes` | 素材索引/缓存 |
-| `WECHAT_AI_BRIDGE_MEME_COOLDOWN_SECONDS` | `60` | 每群图片冷却 |
-| `WECHAT_AI_BRIDGE_MEME_RECENT_COUNT` | `5` | 最近避重张数 |
-| `WECHAT_AI_BRIDGE_MEME_COLLECT_ENABLED` | `false` | 自动收藏聊天表情包 |
-| `WECHAT_AI_BRIDGE_MEME_COLLECT_PRIVATE` | `true` | 是否收藏私聊图片 |
-| `WECHAT_AI_BRIDGE_MEME_COLLECT_MAX_PER_DAY` | `20` | 每天收藏上限 |
-| `WECHAT_AI_BRIDGE_MEME_COLLECT_MIN_SCORE` | `0.75` | AI 表情包置信度下限 |
-| `WECHAT_AI_BRIDGE_MEME_LOCAL_FIRST` | `true` | 回复优先本地收藏 |
-| `WECHAT_AI_BRIDGE_MEME_LIBRARY_DIR` | `data/memes/library` | QQ/微信共享本地库 |
-| `WECHAT_AI_BRIDGE_WEATHER_ENABLED` | `true` | 天气开关 |
-| `WECHAT_AI_BRIDGE_WEATHER_TIMEOUT_SECONDS` | `5` | 1～30 秒 |
-| `WECHAT_AI_BRIDGE_WEATHER_CACHE_SECONDS` | `600` | 0～3600 秒 |
-| `WECHAT_AI_BRIDGE_VISION_ENABLED` | `true` | 微信看图开关 |
-| `WECHAT_AI_BRIDGE_VISION_WINDOW_SECONDS` | `120` | 30～300 秒 |
-| `WECHAT_AI_BRIDGE_VOICE_ENABLED` | `false` | 微信语音条开关，默认关闭 |
-| `WECHAT_AI_BRIDGE_VOICE_NAME` | `zh-CN-XiaoxiaoNeural` | Edge TTS 音色 |
-| `WECHAT_AI_BRIDGE_VOICE_MAX_CHARS` | `120` | 语音最大字数 |
-| `WECHAT_AI_BRIDGE_MEMORY_ENABLED` | `true` | 私聊长期记忆总开关 |
-| `WECHAT_AI_BRIDGE_MEMORY_DB` | `data/runtime/memory.sqlite3` | 记忆与摘要数据库 |
-| `WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY` | `3` | 每 N 轮私聊抽取一次记忆 |
-| `WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY` | `30` | 每 N 轮生成一次摘要；0 关闭 |
-| `WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE` | `64` | 记忆后台队列上限 |
-| `WECHAT_AI_BRIDGE_LOG_DIR` | `data/runtime/logs` | 轮转日志目录 |
-| `WECHAT_AI_BRIDGE_LOG_LEVEL` | `INFO` | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
+| `CHAT_BRIDGE_MODEL_API_KEY` | 空 | DeepSeek 密钥，必填 |
+| `CHAT_BRIDGE_MODEL_NAME` | `deepseek-flash` | 模型名 |
+| `CHAT_BRIDGE_MODEL_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容地址 |
+| `CHAT_BRIDGE_ALLOWED_MODEL_HOSTS` | `api.deepseek.com` | 允许的模型主机 |
+| `CHAT_BRIDGE_MODEL_THINKING` | `disabled` | `enabled`/`disabled` |
+| `CHAT_BRIDGE_MODEL_TIMEOUT_SECONDS` | `45` | 1～120 秒 |
+| `CHAT_BRIDGE_MODEL_MAX_TOKENS` | `1200` | 128～8192 |
+| `CHAT_BRIDGE_STATE_DB` | `data/runtime/chat-state.sqlite3` | 微信状态库 |
+| `CHAT_BRIDGE_GATEWAY_CONFIG` | `data/runtime/native-hook/gateway.json` | 微信 hook 配置 |
+| `CHAT_BRIDGE_PROMPT_FILE` | `config/persona.md` | 人设文件 |
+| `CHAT_BRIDGE_PARTICIPATION_MODE` | `natural` | `natural`/`mentions` |
+| `CHAT_BRIDGE_COOLDOWN_SECONDS` | `5` | 直接互动冷却 |
+| `CHAT_BRIDGE_SPONTANEOUS_COOLDOWN_SECONDS` | `5` | 自然接话合并等待，最少 5 |
+| `CHAT_BRIDGE_HOURLY_QUOTA` | `60` | 每群每小时模型调用上限 |
+| `CHAT_BRIDGE_HISTORY_CONTEXT_MESSAGES` | `50` | 恢复最近条数 1～200 |
+| `CHAT_BRIDGE_MEMES_ENABLED` | `true` | 表情包总开关 |
+| `CHAT_BRIDGE_MEME_CACHE_DIR` | `data/memes` | 素材索引/缓存 |
+| `CHAT_BRIDGE_MEME_COOLDOWN_SECONDS` | `60` | 每群图片冷却 |
+| `CHAT_BRIDGE_MEME_RECENT_COUNT` | `5` | 最近避重张数 |
+| `CHAT_BRIDGE_MEME_COLLECT_ENABLED` | `false` | 自动收藏聊天表情包 |
+| `CHAT_BRIDGE_MEME_COLLECT_PRIVATE` | `true` | 是否收藏私聊图片 |
+| `CHAT_BRIDGE_MEME_COLLECT_MAX_PER_DAY` | `20` | 每天收藏上限 |
+| `CHAT_BRIDGE_MEME_COLLECT_MIN_SCORE` | `0.75` | AI 表情包置信度下限 |
+| `CHAT_BRIDGE_MEME_LOCAL_FIRST` | `true` | 回复优先本地收藏 |
+| `CHAT_BRIDGE_MEME_LIBRARY_DIR` | `data/memes/library` | QQ/微信共享本地库 |
+| `CHAT_BRIDGE_WEATHER_ENABLED` | `true` | 天气开关 |
+| `CHAT_BRIDGE_WEATHER_TIMEOUT_SECONDS` | `5` | 1～30 秒 |
+| `CHAT_BRIDGE_WEATHER_CACHE_SECONDS` | `600` | 0～3600 秒 |
+| `CHAT_BRIDGE_VISION_ENABLED` | `true` | 微信看图开关 |
+| `CHAT_BRIDGE_VISION_WINDOW_SECONDS` | `120` | 30～300 秒 |
+| `CHAT_BRIDGE_VOICE_ENABLED` | `false` | 微信语音条开关，默认关闭 |
+| `CHAT_BRIDGE_VOICE_NAME` | `zh-CN-XiaoxiaoNeural` | Edge TTS 音色 |
+| `CHAT_BRIDGE_VOICE_MAX_CHARS` | `120` | 语音最大字数 |
+| `CHAT_BRIDGE_MEMORY_ENABLED` | `true` | 私聊长期记忆总开关 |
+| `CHAT_BRIDGE_MEMORY_DB` | `data/runtime/memory.sqlite3` | 记忆与摘要数据库 |
+| `CHAT_BRIDGE_MEMORY_UPDATE_EVERY` | `3` | 每 N 轮私聊抽取一次记忆 |
+| `CHAT_BRIDGE_MEMORY_SUMMARY_EVERY` | `30` | 每 N 轮生成一次摘要；0 关闭 |
+| `CHAT_BRIDGE_MEMORY_QUEUE_SIZE` | `64` | 记忆后台队列上限 |
+| `CHAT_BRIDGE_LOG_DIR` | `data/runtime/logs` | 轮转日志目录 |
+| `CHAT_BRIDGE_LOG_LEVEL` | `INFO` | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
 
 微信私聊额外配置在 `data/runtime/native-hook/gateway.json`：
 
@@ -64,7 +64,7 @@ notepad .env
 `allowedPrivateIds` 只填一对一 wxid，不填群 ID。用下面的命令查 wxid：
 
 ```powershell
-uv run --extra native wechat-ai-bridge contacts --query 对方昵称
+uv run --extra native chatbridge contacts --query 对方昵称
 ```
 
 ## 2. QQ / NapCat
@@ -103,7 +103,7 @@ uv run --extra native wechat-ai-bridge contacts --query 对方昵称
 {
   "network": {
     "httpServers": [{
-      "name": "wechat-ai-bridge-api",
+      "name": "chatbridge-api",
       "enable": true,
       "host": "127.0.0.1",
       "port": 3000,
@@ -111,7 +111,7 @@ uv run --extra native wechat-ai-bridge contacts --query 对方昵称
       "token": "<QQ_ONEBOT_TOKEN>"
     }],
     "httpClients": [{
-      "name": "wechat-ai-bridge-webhook",
+      "name": "chatbridge-webhook",
       "enable": true,
       "url": "http://127.0.0.1:8081/onebot",
       "messagePostFormat": "array",
@@ -130,8 +130,8 @@ uv run --extra native wechat-ai-bridge contacts --query 对方昵称
 ### 群号与好友号
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq groups
-uv run --extra native wechat-ai-bridge qq friends
+uv run --extra native chatbridge qq groups
+uv run --extra native chatbridge qq friends
 ```
 
 把 `group_id` 填入 `QQ_ALLOWED_GROUPS`，把 `user_id` 填入 `QQ_ALLOWED_PRIVATE_USERS`。

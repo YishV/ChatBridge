@@ -3,9 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.qa.identity import load_identity_key
-from wechat_ai_bridge.qa.service import ChatService
+from chat_bridge.message import IncomingMessage
+from chat_bridge.qa.identity import load_identity_key
+from chat_bridge.qa.service import ChatService
 
 
 class CaptureModel:

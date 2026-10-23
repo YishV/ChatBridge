@@ -3,12 +3,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.singing.config import SingingSettings
+from chat_bridge.singing.config import SingingSettings
 
 
 class SingingSettingsTests(unittest.TestCase):
     def test_defaults_are_disabled_and_use_project_music_dir(self):
-        with patch('wechat_ai_bridge.singing.config.load_dotenv'):
+        with patch('chat_bridge.singing.config.load_dotenv'):
             with patch.dict(os.environ, {}, clear=True):
                 settings = SingingSettings.from_env()
         self.assertFalse(settings.enabled)

@@ -2,10 +2,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.config import SingingSettings
-from wechat_ai_bridge.singing.queue import SingingQueue
-from wechat_ai_bridge.singing.worker import SingingWorker
-from wechat_ai_bridge.wechat.delivery import SendReceipt
+from chat_bridge.singing.config import SingingSettings
+from chat_bridge.singing.queue import SingingQueue
+from chat_bridge.singing.worker import SingingWorker
+from chat_bridge.wechat.delivery import SendReceipt
 
 
 class FakeSender:

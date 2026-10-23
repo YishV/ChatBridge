@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.state.store import StateStore
 
 
 class MemeHistoryTests(unittest.TestCase):

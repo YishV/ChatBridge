@@ -1,9 +1,9 @@
-# 本机运行面板
+# ChatBridge 本机运行面板
 
 查看服务状态、翻唱队列、日志尾部，并管理私聊长期记忆。
 
 ```powershell
-python -m wechat_ai_bridge panel
+python -m chat_bridge panel
 ```
 
 或者：
@@ -68,8 +68,8 @@ data/runtime/logs/app.log
 配置：
 
 ```dotenv
-WECHAT_AI_BRIDGE_LOG_DIR=data/runtime/logs
-WECHAT_AI_BRIDGE_LOG_LEVEL=INFO
+CHAT_BRIDGE_LOG_DIR=data/runtime/logs
+CHAT_BRIDGE_LOG_LEVEL=INFO
 ```
 
 ## JSON 接口

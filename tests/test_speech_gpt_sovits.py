@@ -6,8 +6,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from wechat_ai_bridge.speech.errors import SpeechError
-from wechat_ai_bridge.speech.gpt_sovits import GPTSoVITSClient, GPTSoVITSSettings
+from chat_bridge.speech.errors import SpeechError
+from chat_bridge.speech.gpt_sovits import GPTSoVITSClient, GPTSoVITSSettings
 
 
 def wav_bytes(seconds=0.5, rate=24000):

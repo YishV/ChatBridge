@@ -50,7 +50,7 @@ NapCat 的 OneBot 配置在 `tools/NapCat.Shell\config\onebot11_<QQ号>.json`（
 - `QQ_WEBHOOK_SECRET`：NapCat HTTP 客户端的 token；NapCat 用 HMAC-SHA1 签名，本项目校验 `X-Signature: sha1=...`。两边必须一致。
 - `QQ_ALLOWED_GROUPS`：QQ 群号，不是群名。NapCat 重启并登录后执行：
   ```powershell
-  uv run --extra native wechat-ai-bridge qq groups
+  uv run --extra native chatbridge qq groups
   ```
   输出里的 `group_id` 就是群号；填一个测试群，多个用逗号分隔。
 - `QQ_ALLOWED_PRIVATE_USERS`：允许私聊的 QQ 号。先执行 `qq friends` 查看好友列表，再把 QQ 号填进去；不填则不响应任何私聊。
@@ -108,10 +108,10 @@ data/voices/xiaoai/reference.wav
 ## 启动与检查
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq groups
-uv run --extra native wechat-ai-bridge qq friends
-uv run --extra native wechat-ai-bridge qq check
-uv run --extra native wechat-ai-bridge qq run
+uv run --extra native chatbridge qq groups
+uv run --extra native chatbridge qq friends
+uv run --extra native chatbridge qq check
+uv run --extra native chatbridge qq run
 ```
 
 `qq groups`/`qq friends` 只读取并打印群或好友列表，不发送消息；`qq check` 只检查 OneBot 登录、webhook 端口、群/私聊配置和参考音频是否存在，不发送消息，也不调用 `/tts`。`qq run` 启动 webhook 和 QQ 网关；微信网关仍用原来的 `run` 命令，两个进程互不影响。

@@ -5,8 +5,8 @@ try:
 except ImportError:
     zstandard = None
 
-from wechat_ai_bridge.wechat.events import normalize_gateway_message
-from wechat_ai_bridge.wechat.native import native_group_message, parse_native_mentions
+from chat_bridge.wechat.events import normalize_gateway_message
+from chat_bridge.wechat.native import native_group_message, parse_native_mentions
 
 
 SOURCE_LIMIT = 64 * 1024

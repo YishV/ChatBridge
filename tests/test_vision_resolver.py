@@ -15,9 +15,9 @@ from unittest.mock import Mock
 
 from PIL import Image
 
-from wechat_ai_bridge.vision.media import VisionError
-from wechat_ai_bridge.wechat.errors import GatewayFatalError
-from wechat_ai_bridge.vision.resolver import ImageReference, NativeImageResolver, _blob_ids
+from chat_bridge.vision.media import VisionError
+from chat_bridge.wechat.errors import GatewayFatalError
+from chat_bridge.vision.resolver import ImageReference, NativeImageResolver, _blob_ids
 
 
 @contextmanager

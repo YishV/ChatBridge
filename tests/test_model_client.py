@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
+from chat_bridge.models.client import ChatCompletionsClient, ModelError
 
 
 class ModelClientTests(unittest.TestCase):
@@ -22,14 +22,14 @@ class ModelClientTests(unittest.TestCase):
 
     def test_malformed_response_containers_are_model_errors(self):
         for payload in (None, [], {"choices": None}, {"choices": [None]}, {"choices": [{"message": None, "finish_reason": "stop"}]}):
-            with self.subTest(payload=payload), patch("wechat_ai_bridge.models.client.build_opener", return_value=self.opener(payload)):
+            with self.subTest(payload=payload), patch("chat_bridge.models.client.build_opener", return_value=self.opener(payload)):
                 with self.assertRaises(ModelError):
                     self.client().complete([{"role": "user", "content": "hi"}])
 
     def test_json_mode_and_thinking_disabled_are_sent_only_when_requested(self):
         payload = {"choices": [{"finish_reason": "stop", "message": {"content": '{"reply":null}'}}]}
         opener = self.opener(payload)
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             self.client().complete_json([{"role": "user", "content": "Return JSON"}])
         body = json.loads(opener.open.call_args.args[0].data)
         self.assertEqual(body["response_format"], {"type": "json_object"})
@@ -40,13 +40,13 @@ class ModelClientTests(unittest.TestCase):
                                 (TimeoutError('private body'), 'model_timeout')]:
             opener = Mock()
             opener.open.side_effect = error
-            with self.subTest(code=expected), patch('wechat_ai_bridge.models.client.build_opener', return_value=opener):
+            with self.subTest(code=expected), patch('chat_bridge.models.client.build_opener', return_value=opener):
                 with self.assertRaises(ModelError) as caught:
                     self.client().complete([{'role': 'user', 'content': 'private message'}])
                 self.assertEqual(caught.exception.code, expected)
                 self.assertNotIn('private', caught.exception.code)
         payload = {'choices': [{'finish_reason': 'length', 'message': {'content': 'private content'}}]}
-        with patch('wechat_ai_bridge.models.client.build_opener', return_value=self.opener(payload)):
+        with patch('chat_bridge.models.client.build_opener', return_value=self.opener(payload)):
             with self.assertRaises(ModelError) as caught:
                 self.client().complete([{'role': 'user', 'content': 'private message'}])
             self.assertEqual(caught.exception.code, 'model_response_incomplete')

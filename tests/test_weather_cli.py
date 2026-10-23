@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from wechat_ai_bridge import cli
-from wechat_ai_bridge.settings import Settings
+from chat_bridge import cli
+from chat_bridge.settings import Settings
 
 
 class WeatherCliTests(unittest.TestCase):

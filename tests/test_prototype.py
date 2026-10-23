@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.models.client import ChatCompletionsClient
+from chat_bridge.state.store import StateStore
 
 
 class PrototypeTests(unittest.TestCase):
@@ -66,10 +66,10 @@ class PrototypeTests(unittest.TestCase):
                                        allowed_hosts=frozenset({"api.deepseek.com"}),
                                        api_key="test-key", model="deepseek-flash")
         opener = Opener("stop")
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             self.assertEqual(client.complete([{"role": "user", "content": "问题"}]), "回答")
         self.assertEqual(opener.url, "https://api.deepseek.com/chat/completions")
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=Opener("length")):
+        with patch("chat_bridge.models.client.build_opener", return_value=Opener("length")):
             with self.assertRaisesRegex(Exception, "模型请求失败"):
                 client.complete([{"role": "user", "content": "问题"}])
 

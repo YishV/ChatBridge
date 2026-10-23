@@ -25,6 +25,7 @@ function Write-Step([string]$Text) {
     Write-Host "[start] $Text" -ForegroundColor Cyan
 }
 
+Write-Step 'ChatBridge 启动中'
 Write-Step "Web 面板：$PanelUrl（未启动时运行 .\scripts\start-panel.ps1）"
 
 function Read-EnvMap([string]$Path) {
@@ -185,12 +186,12 @@ function Start-QQ {
     Start-NapCatIfNeeded
     Start-SingingWorker
     Write-Step '启动 QQ 网关；按 Ctrl+C 停止'
-    & $python -m wechat_ai_bridge qq run
+    & $python -m chat_bridge qq run
 }
 
 function Start-WeChat {
     Write-Step '启动微信网关；按 Ctrl+C 停止'
-    & $python -m wechat_ai_bridge run
+    & $python -m chat_bridge run
 }
 
 if ($Target -eq 'all') {

@@ -16,4 +16,4 @@ if (-not (Test-Path -LiteralPath $python)) {
 }
 Set-Location $Root
 Write-Host "[panel] http://127.0.0.1:$Port" -ForegroundColor Cyan
-& $python -m wechat_ai_bridge panel --port $Port
+& $python -m chat_bridge panel --port $Port

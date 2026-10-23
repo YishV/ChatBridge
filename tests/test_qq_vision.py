@@ -5,9 +5,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.qq.vision import QQVisionInbox
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.message import IncomingMessage
+from chat_bridge.qq.vision import QQVisionInbox
+from chat_bridge.state.store import StateStore
 
 
 def png_bytes():

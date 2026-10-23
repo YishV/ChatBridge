@@ -5,11 +5,11 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome
-from wechat_ai_bridge.models.client import ModelError
-from wechat_ai_bridge.qa import service as chat_module
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage, Outcome
+from chat_bridge.models.client import ModelError
+from chat_bridge.qa import service as chat_module
+from chat_bridge.state.store import StateStore
 
 
 class FakeModel:
@@ -88,9 +88,9 @@ class ChatTests(unittest.TestCase):
         self.assertNotIn("秘密群聊", json.dumps(self.model.calls[-1], ensure_ascii=False))
 
     def test_context_expires_after_ten_minutes(self):
-        with patch("wechat_ai_bridge.qa.service.monotonic", return_value=0):
+        with patch("chat_bridge.qa.service.monotonic", return_value=0):
             self.chat.observe(message(text="已过期的话题"))
-        with patch("wechat_ai_bridge.qa.service.monotonic", return_value=601):
+        with patch("chat_bridge.qa.service.monotonic", return_value=601):
             self.respond(message("m2", text="新话题"))
         self.assertNotIn("已过期的话题", json.dumps(self.model.calls[-1], ensure_ascii=False))
 

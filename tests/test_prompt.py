@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT, _SYSTEM_RULES
-from wechat_ai_bridge.settings import Settings
+from chat_bridge.message import IncomingMessage
+from chat_bridge.qa.service import ChatService, DEFAULT_SYSTEM_PROMPT, _SYSTEM_RULES
+from chat_bridge.settings import Settings
 
 
 class RecordingModel:
@@ -84,12 +84,12 @@ class PromptFileTests(unittest.TestCase):
 
 class PromptSettingsTests(unittest.TestCase):
     def test_default_prompt_file(self):
-        with patch.dict(os.environ, {}, clear=True), patch("wechat_ai_bridge.settings.load_dotenv"):
+        with patch.dict(os.environ, {}, clear=True), patch("chat_bridge.settings.load_dotenv"):
             self.assertEqual(Settings.from_env().prompt_file, Path("config/persona.md"))
 
     def test_prompt_file_can_be_configured(self):
-        with patch.dict(os.environ, {"WECHAT_AI_BRIDGE_PROMPT_FILE": "config/custom.md"}, clear=True), \
-                patch("wechat_ai_bridge.settings.load_dotenv"):
+        with patch.dict(os.environ, {"CHAT_BRIDGE_PROMPT_FILE": "config/custom.md"}, clear=True), \
+                patch("chat_bridge.settings.load_dotenv"):
             self.assertEqual(Settings.from_env().prompt_file, Path("config/custom.md"))
 
 

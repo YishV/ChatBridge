@@ -7,9 +7,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from wechat_ai_bridge.media.local_memes import CompositeMemeCatalog, LocalMemeLibrary
-from wechat_ai_bridge.media.meme_collector import MemeCollector
-from wechat_ai_bridge.settings import Settings
+from chat_bridge.media.local_memes import CompositeMemeCatalog, LocalMemeLibrary
+from chat_bridge.media.meme_collector import MemeCollector
+from chat_bridge.settings import Settings
 
 
 def jpeg(color=(20, 80, 160)) -> bytes:

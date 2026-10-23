@@ -1,6 +1,6 @@
 # 本机网关配置
 
-从项目根目录运行。`.env` 的 `WECHAT_AI_BRIDGE_GATEWAY_CONFIG` 指向本地 JSON，默认 `data/runtime/native-hook/gateway.json`。本次现场配置已在本机生成，复制项目时需要重新核验对应环境。
+从项目根目录运行。`.env` 的 `CHAT_BRIDGE_GATEWAY_CONFIG` 指向本地 JSON，默认 `data/runtime/native-hook/gateway.json`。本次现场配置已在本机生成，复制项目时需要重新核验对应环境。
 
 文件包含以下字段，真实值只写本机配置，不写公开示例或 Git：
 
@@ -22,7 +22,7 @@
 后台日志只输出状态、错误代码和计数。需要暂停时执行：
 
 ```powershell
-uv run --extra native wechat-ai-bridge admin pause
+uv run --extra native chatbridge admin pause
 ```
 
 恢复使用 `admin resume`；账号/版本/监听归属异常导致网关退出时，先修复环境，再重新执行 `run`。同一状态库对应的网关进程有操作系统文件锁，不能重复启动两份。

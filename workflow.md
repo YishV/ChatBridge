@@ -13,8 +13,8 @@
 1. 使用已核验的 Windows 微信与接入组件，确认账号、核心版本和回环监听归属。
 2. 执行 `uv sync --extra native`，复制 `.env.example` 为 `.env`，填写 DeepSeek 密钥及本机参数。
 3. 使用本机 `admin allow` 配置授权测试群。白名单外群和私聊不能进入模型上下文。
-4. 执行 `uv run --extra native wechat-ai-bridge run --check`。它不调用模型、不发送消息；按只读检查结果补齐条件。
-5. 配置有效密钥后运行 `uv run --extra native wechat-ai-bridge run`，保持进程运行。缺少密钥时拒绝真实聊天启动。
+4. 执行 `uv run --extra native chatbridge run --check`。它不调用模型、不发送消息；按只读检查结果补齐条件。
+5. 配置有效密钥后运行 `uv run --extra native chatbridge run`，保持进程运行。缺少密钥时拒绝真实聊天启动。
 6. 启动时建立消息分片的当前游标，只接之后的新消息。`run --once` 仅轮询一次，不补答历史，不保持接收。
 
 `ask` 只在本机模拟消息，不发微信。完整命令见 [README](README.md)。真实联调前告知群友必要上下文会发送至 DeepSeek。
@@ -52,7 +52,7 @@ flowchart TD
 
 每群默认共享最近 50 条双方发言。授权群的接收文本与确认发出的回复写入 SQLite `chat_history`，启动按原顺序恢复最近窗口，不按 10 分钟过期；完整存档不自动删除。恢复只作为背景，不触发补发或模型调用。成员采用稳定群内代号与可读微信昵称，user 消息用 API `name` 区分，保留当前说话人及历史回复目标。同名不合并、改名不换身份，只查询实际发送人的微信昵称，不读取联系人备注。发送失败或未知时不保存拟发助手内容。
 
-用户记录与消息去重认领同事务；助手记录与确认投递同事务。撤销授权不删除存档，也不再加载；重新授权后可恢复本机已有记录。恢复条数用 `WECHAT_AI_BRIDGE_HISTORY_CONTEXT_MESSAGES` 配置 1～200，默认 50，重启生效。旧版未保存的历史不回填。启动状态中的 `historyRestored` 是恢复条数，`historyContextMessages` 是每群窗口上限，不包含正文。
+用户记录与消息去重认领同事务；助手记录与确认投递同事务。撤销授权不删除存档，也不再加载；重新授权后可恢复本机已有记录。恢复条数用 `CHAT_BRIDGE_HISTORY_CONTEXT_MESSAGES` 配置 1～200，默认 50，重启生效。旧版未保存的历史不回填。启动状态中的 `historyRestored` 是恢复条数，`historyContextMessages` 是每群窗口上限，不包含正文。
 
 默认原生 `@` 和拍机器人直接回应冷却 5 秒。普通消息先进入群上下文，在最后一条发言约 5 秒后合并判断；原生 `@` 或拍机器人取消该群待处理自然批次，避免额外重复插话。暂停或撤销群会清掉待处理批次，恢复时不补答；重启也不恢复内存待处理消息。每群每小时最多 60 次模型调用，配额包含沉默和失败。拍一拍刚入库尚无服务器编号时等待后续确认，不提前推进该分片游标。
 
@@ -62,7 +62,7 @@ flowchart TD
 
 自然参与决策使用受强制的 `decide_reply` 工具返回文字、沉默（`reply` 为空字符串）或表情编号；空回复是正常沉默，不记为 `model_response_empty`。决策工具参数损坏、缺失或截断才按可重试错误处理，最多重试一次；不再重复请求同一 JSON Output。
 
-人设正文由 `config/persona.md` 按请求读取。保存内容即可更新，切换 `.env` 中的文件路径需要重启；显式内联 `WECHAT_AI_BRIDGE_SYSTEM_PROMPT` 优先。人设文件不得包含密钥，模型仅使用其文字内容，不执行文件中的指令作为管理员操作。
+人设正文由 `config/persona.md` 按请求读取。保存内容即可更新，切换 `.env` 中的文件路径需要重启；显式内联 `CHAT_BRIDGE_SYSTEM_PROMPT` 优先。人设文件不得包含密钥，模型仅使用其文字内容，不执行文件中的指令作为管理员操作。
 
 ## 4. 管理与故障处理
 
@@ -90,7 +90,7 @@ git diff --check
 `voice check` 只检查 Edge TTS、CABLE 设备、微信窗口和群名解析，不发送：
 
 ```powershell
-uv run --extra native --extra voice wechat-ai-bridge voice check
+uv run --extra native --extra voice chatbridge voice check
 ```
 
 真实联调仅在本机会话已授权的测试群进行，不在公开文档写实际群名/群 ID。
@@ -127,8 +127,8 @@ uv run --extra native --extra voice wechat-ai-bridge voice check
 QQ 是独立进程，不与微信共用登录态或状态库。NapCat 负责 QQ 登录和 OneBot 11；本项目接收 HTTP POST webhook，发送 HTTP API 请求。语音由本机 GPT-SoVITS `api_v2.py` 生成 WAV，再以 OneBot `record` 消息段交给 NapCat 转 SILK。
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq check
-uv run --extra native wechat-ai-bridge qq run
+uv run --extra native chatbridge qq check
+uv run --extra native chatbridge qq run
 ```
 
 `qq check` 不发送消息；它检查 OneBot 登录、webhook 端口、群数量和参考音频。真实验收需要：测试小号、测试群、NapCat HTTP 服务 + webhook、GPT-SoVITS 服务。详细步骤见 [QQ 接入说明](docs/qq-gpt-sovits.md)。

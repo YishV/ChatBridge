@@ -38,9 +38,9 @@
 ## 配置
 
 ```dotenv
-WECHAT_AI_BRIDGE_VOICE_ENABLED=true
-WECHAT_AI_BRIDGE_VOICE_NAME=zh-CN-XiaoxiaoNeural
-WECHAT_AI_BRIDGE_VOICE_MAX_CHARS=120
+CHAT_BRIDGE_VOICE_ENABLED=true
+CHAT_BRIDGE_VOICE_NAME=zh-CN-XiaoxiaoNeural
+CHAT_BRIDGE_VOICE_MAX_CHARS=120
 ```
 
 安装：
@@ -52,13 +52,13 @@ uv sync --extra native --extra voice
 检查（不发送）：
 
 ```powershell
-uv run --extra native --extra voice wechat-ai-bridge voice check
+uv run --extra native --extra voice chatbridge voice check
 ```
 
 显式发送一条测试语音（会真实发送，默认只建议测试群）：
 
 ```powershell
-uv run --extra native --extra voice wechat-ai-bridge voice say --group 测试群ID --text "测试语音"
+uv run --extra native --extra voice chatbridge voice say --group 测试群ID --text "测试语音"
 ```
 
 ## 代码位置

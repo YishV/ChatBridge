@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
+from chat_bridge.models.client import ChatCompletionsClient, ModelError
 
 
 class DecisionClientTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class DecisionClientTests(unittest.TestCase):
 
     def call(self, body, *, meme_ids=()):
         opener = self.response(body)
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             result = self.client().complete_decision([{"role": "user", "content": "fixture"}],
                                                      meme_ids=meme_ids)
         return result, opener

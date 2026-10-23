@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 from PIL import Image
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient
-from wechat_ai_bridge.vision.media import normalize_image
+from chat_bridge.models.client import ChatCompletionsClient
+from chat_bridge.vision.media import normalize_image
 
 
 class VisionModelTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class VisionModelTests(unittest.TestCase):
             allowed_hosts=frozenset({'api.deepseek.com'}),api_key='fixture',model='deepseek-flash')
         opener=Mock();opener.open.return_value=io.BytesIO(json.dumps({'choices':[{
             'finish_reason':'stop','message':{'content':'一张蓝色图片。'}}]}).encode())
-        with patch('wechat_ai_bridge.models.client.build_opener',return_value=opener):
+        with patch('chat_bridge.models.client.build_opener',return_value=opener):
             reply=client.complete_vision(messages,image=image)
         payload=json.loads(opener.open.call_args.args[0].data)
         self.assertEqual(reply,'一张蓝色图片。')

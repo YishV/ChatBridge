@@ -12,7 +12,7 @@
 ## 代码结构
 
 ```text
-src/wechat_ai_bridge/
+src/chat_bridge/
   speech/
     gpt_sovits.py     本机 /tts 客户端、WAV 校验、回环地址限制
   qq/
@@ -49,8 +49,8 @@ QQ 群消息/拍一拍
 见 [QQ 接入说明](../qq-gpt-sovits.md) 和 `.env.example` 的 QQ 段。
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq check
-uv run --extra native wechat-ai-bridge qq run
+uv run --extra native chatbridge qq check
+uv run --extra native chatbridge qq run
 ```
 
 ## 离线验证

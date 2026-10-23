@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.memory import MemoryStore
+from chat_bridge.memory import MemoryStore
 
 
 class MemoryStoreTests(unittest.TestCase):

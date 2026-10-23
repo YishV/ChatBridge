@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 
 from PIL import Image
 
-from wechat_ai_bridge.vision.media import VisionError, decode_image, normalize_image
+from chat_bridge.vision.media import VisionError, decode_image, normalize_image
 
 
 def picture(fmt='PNG', size=(100, 60), **options):

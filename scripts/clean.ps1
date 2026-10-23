@@ -128,7 +128,7 @@ function Remove-Target([string]$Path) {
 function Assert-ServicesStopped {
     if ($Force) { return }
     $running = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match 'wechat_ai_bridge\s+(run|qq|singing-worker|panel)' }
+        Where-Object { $_.CommandLine -match 'chat_bridge\s+(run|qq|singing-worker|panel)' }
     if ($running) {
         $ids = ($running | ForEach-Object { $_.ProcessId }) -join ', '
         throw "检测到网关/worker/面板仍在运行（PID: $ids）。请先停止，或加 -Force。"

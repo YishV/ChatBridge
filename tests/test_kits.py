@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
-from wechat_ai_bridge.media.kits import CoverError, KitsClient
+from chat_bridge.media.kits import CoverError, KitsClient
 
 
 class Response(io.BytesIO):

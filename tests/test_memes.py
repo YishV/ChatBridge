@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from wechat_ai_bridge.media.memes import MemeAsset, MemeCatalog, MemeError
+from chat_bridge.media.memes import MemeAsset, MemeCatalog, MemeError
 
 
 BASE = 'https://raw.githubusercontent.com/the-beating-light-of-the-nail/deepseek-chan-meme-pack/main/'
@@ -58,7 +58,7 @@ class MemeCatalogTests(unittest.TestCase):
 
     def catalog(self, values=None):
         self.opener = FakeOpener(values or {ARCHIVE: forbidden(), README: SAMPLE})
-        self.build = patch('wechat_ai_bridge.media.memes.urllib.request.build_opener', return_value=self.opener)
+        self.build = patch('chat_bridge.media.memes.urllib.request.build_opener', return_value=self.opener)
         self.build_mock = self.build.start()
         self.addCleanup(self.build.stop)
         return MemeCatalog(self.root, self.outgoing)

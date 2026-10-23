@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.library import SongLibrary
+from chat_bridge.singing.library import SongLibrary
 
 
 class SongLibraryTests(unittest.TestCase):

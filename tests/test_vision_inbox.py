@@ -7,15 +7,15 @@ from unittest.mock import Mock
 
 from PIL import Image
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.reader import NativeRow
-from wechat_ai_bridge.vision.media import normalize_image, VisionError
+from chat_bridge.message import IncomingMessage
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.reader import NativeRow
+from chat_bridge.vision.media import normalize_image, VisionError
 
 
 class VisionInboxTests(unittest.TestCase):
     def setUp(self):
-        from wechat_ai_bridge.vision.inbox import VisionInbox
+        from chat_bridge.vision.inbox import VisionInbox
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.store=StateStore(Path(self.temp.name)/'state.db');self.addCleanup(self.store.close)
         self.store.allow_group('a@chatroom');self.store.allow_group('b@chatroom')

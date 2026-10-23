@@ -1,7 +1,7 @@
 import unittest
 
-from wechat_ai_bridge.wechat.events import GatewayMessage, normalize_gateway_message
-from wechat_ai_bridge.wechat.native import native_private_message
+from chat_bridge.wechat.events import GatewayMessage, normalize_gateway_message
+from chat_bridge.wechat.native import native_private_message
 
 
 class GatewayEventTests(unittest.TestCase):

@@ -1,6 +1,6 @@
-# 命令与脚本总览
+# ChatBridge 命令与脚本总览
 
-常用命令都放在这里，省得去翻脚本。
+常用命令都放在这里，省得去翻脚本。项目旧名 `chatbridge` 仍保留为兼容命令；新命令是 `chatbridge`。
 
 ## 1. 首次准备
 
@@ -131,7 +131,7 @@ data/voices/xiaoai/prompt.txt
 .\scripts\start-singing-worker.ps1
 
 # 只处理一个任务
-python -m wechat_ai_bridge singing-worker --once
+python -m chat_bridge singing-worker --once
 ```
 
 曲库目录：
@@ -153,22 +153,22 @@ SINGING_PITCH=0
 
 ```powershell
 # 同步官方表情索引
-python -m wechat_ai_bridge memes sync
+python -m chat_bridge memes sync
 
 # 查看素材
-python -m wechat_ai_bridge memes list
+python -m chat_bridge memes list
 
 # 检查配置
-python -m wechat_ai_bridge memes check
+python -m chat_bridge memes check
 
 # 准备单张素材
-python -m wechat_ai_bridge memes prepare --id 083
+python -m chat_bridge memes prepare --id 083
 ```
 
 自动收藏在 `.env` 打开：
 
 ```dotenv
-WECHAT_AI_BRIDGE_MEME_COLLECT_ENABLED=true
+CHAT_BRIDGE_MEME_COLLECT_ENABLED=true
 ```
 
 本地库：
@@ -181,50 +181,50 @@ data/memes/library/
 
 ```powershell
 # 模拟一条群消息，不发送
-python -m wechat_ai_bridge ask --group 测试群 --sender 测试人 --message-id test-1 --text "你好"
+python -m chat_bridge ask --group 测试群 --sender 测试人 --message-id test-1 --text "你好"
 
 # 天气
-python -m wechat_ai_bridge weather --city 杭州,浙江省
+python -m chat_bridge weather --city 杭州,浙江省
 
 # 模型连通检查
-python -m wechat_ai_bridge model-check
+python -m chat_bridge model-check
 
 # 微信配置检查，不处理消息
-python -m wechat_ai_bridge run --check
+python -m chat_bridge run --check
 
 # 微信只轮询一次
-python -m wechat_ai_bridge run --once
+python -m chat_bridge run --once
 
 # 微信联系人
-python -m wechat_ai_bridge contacts --query 昵称
+python -m chat_bridge contacts --query 昵称
 
 # 微信白名单/暂停
-python -m wechat_ai_bridge admin allow 群ID@chatroom
-python -m wechat_ai_bridge admin deny 群ID@chatroom
-python -m wechat_ai_bridge admin pause
-python -m wechat_ai_bridge admin resume
-python -m wechat_ai_bridge admin status
+python -m chat_bridge admin allow 群ID@chatroom
+python -m chat_bridge admin deny 群ID@chatroom
+python -m chat_bridge admin pause
+python -m chat_bridge admin resume
+python -m chat_bridge admin status
 
 # QQ 检查
-python -m wechat_ai_bridge qq check
-python -m wechat_ai_bridge qq groups
-python -m wechat_ai_bridge qq friends
+python -m chat_bridge qq check
+python -m chat_bridge qq groups
+python -m chat_bridge qq friends
 
 # 语音条检查（不进入聊天）
-python -m wechat_ai_bridge voice check
+python -m chat_bridge voice check
 
 # 显式发一条语音到指定群
-python -m wechat_ai_bridge voice say --group 群ID --text "测试语音"
+python -m chat_bridge voice say --group 群ID --text "测试语音"
 ```
 
 ## 9. 云端短样
 
 ```powershell
-python -m wechat_ai_bridge cover check
-python -m wechat_ai_bridge cover voices --page 1
-python -m wechat_ai_bridge cover prepare --input data/music/某首歌.mp3 --song 歌名 --artist 歌手 --start 0 --duration 20 --voice-id 1
-python -m wechat_ai_bridge cover run --session <会话ID>
-python -m wechat_ai_bridge cover status --session <会话ID>
+python -m chat_bridge cover check
+python -m chat_bridge cover voices --page 1
+python -m chat_bridge cover prepare --input data/music/某首歌.mp3 --song 歌名 --artist 歌手 --start 0 --duration 20 --voice-id 1
+python -m chat_bridge cover run --session <会话ID>
+python -m chat_bridge cover status --session <会话ID>
 ```
 
 这是云端短样流程，和本地 RVC 翻唱不是同一条链路。
@@ -267,9 +267,9 @@ python -m unittest tests.test_local_memes
 python -m unittest tests.test_panel
 
 # 所有 CLI 帮助
-python -m wechat_ai_bridge --help
-python -m wechat_ai_bridge qq --help
-python -m wechat_ai_bridge cover --help
+python -m chat_bridge --help
+python -m chat_bridge qq --help
+python -m chat_bridge cover --help
 ```
 
 ## 12. 内部脚本

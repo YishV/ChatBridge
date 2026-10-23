@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.config import SingingSettings
-from wechat_ai_bridge.singing.renderer import CoverRenderer, RenderError
+from chat_bridge.singing.config import SingingSettings
+from chat_bridge.singing.renderer import CoverRenderer, RenderError
 
 
 class CoverRendererTests(unittest.TestCase):

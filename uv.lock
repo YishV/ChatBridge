@@ -103,6 +103,50 @@ wheels = [
 ]
 
 [[package]]
+name = "chatbridge"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "pillow" },
+    { name = "python-dotenv" },
+]
+
+[package.optional-dependencies]
+media = [
+    { name = "imageio-ffmpeg" },
+]
+native = [
+    { name = "pycryptodome" },
+    { name = "sqlcipher3" },
+    { name = "zstandard" },
+]
+voice = [
+    { name = "edge-tts" },
+    { name = "numpy" },
+    { name = "pycaw", marker = "sys_platform == 'win32'" },
+    { name = "pyperclip" },
+    { name = "sounddevice" },
+    { name = "soundfile" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "edge-tts", marker = "extra == 'voice'", specifier = ">=7.3,<8" },
+    { name = "imageio-ffmpeg", marker = "extra == 'media'", specifier = ">=0.6,<0.7" },
+    { name = "numpy", marker = "extra == 'voice'", specifier = ">=2,<3" },
+    { name = "pillow", specifier = ">=12,<13" },
+    { name = "pycaw", marker = "sys_platform == 'win32' and extra == 'voice'", specifier = ">=20260921" },
+    { name = "pycryptodome", marker = "extra == 'native'", specifier = ">=3.23,<4" },
+    { name = "pyperclip", marker = "extra == 'voice'", specifier = ">=1.8,<2" },
+    { name = "python-dotenv", specifier = ">=1.0,<2" },
+    { name = "sounddevice", marker = "extra == 'voice'", specifier = ">=0.5,<0.6" },
+    { name = "soundfile", marker = "extra == 'voice'", specifier = ">=0.14,<0.15" },
+    { name = "sqlcipher3", marker = "extra == 'native'", specifier = ">=0.6.2,<0.7" },
+    { name = "zstandard", marker = "extra == 'native'", specifier = ">=0.25,<0.26" },
+]
+provides-extras = ["media", "native", "voice"]
+
+[[package]]
 name = "comtypes"
 version = "1.4.17"
 source = { registry = "https://pypi.org/simple" }
@@ -405,50 +449,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
 ]
-
-[[package]]
-name = "wechat-ai-bridge"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "pillow" },
-    { name = "python-dotenv" },
-]
-
-[package.optional-dependencies]
-media = [
-    { name = "imageio-ffmpeg" },
-]
-native = [
-    { name = "pycryptodome" },
-    { name = "sqlcipher3" },
-    { name = "zstandard" },
-]
-voice = [
-    { name = "edge-tts" },
-    { name = "numpy" },
-    { name = "pycaw", marker = "sys_platform == 'win32'" },
-    { name = "pyperclip" },
-    { name = "sounddevice" },
-    { name = "soundfile" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "edge-tts", marker = "extra == 'voice'", specifier = ">=7.3,<8" },
-    { name = "imageio-ffmpeg", marker = "extra == 'media'", specifier = ">=0.6,<0.7" },
-    { name = "numpy", marker = "extra == 'voice'", specifier = ">=2,<3" },
-    { name = "pillow", specifier = ">=12,<13" },
-    { name = "pycaw", marker = "sys_platform == 'win32' and extra == 'voice'", specifier = ">=20260921" },
-    { name = "pycryptodome", marker = "extra == 'native'", specifier = ">=3.23,<4" },
-    { name = "pyperclip", marker = "extra == 'voice'", specifier = ">=1.8,<2" },
-    { name = "python-dotenv", specifier = ">=1.0,<2" },
-    { name = "sounddevice", marker = "extra == 'voice'", specifier = ">=0.5,<0.6" },
-    { name = "soundfile", marker = "extra == 'voice'", specifier = ">=0.14,<0.15" },
-    { name = "sqlcipher3", marker = "extra == 'native'", specifier = ">=0.6.2,<0.7" },
-    { name = "zstandard", marker = "extra == 'native'", specifier = ">=0.25,<0.26" },
-]
-provides-extras = ["media", "native", "voice"]
 
 [[package]]
 name = "yarl"

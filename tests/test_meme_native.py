@@ -6,11 +6,11 @@ from unittest.mock import Mock
 
 from PIL import Image
 
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.gateway import GatewayConfig, NativeClient, NativeSender
-from wechat_ai_bridge.wechat.images import static_gif
-from wechat_ai_bridge.wechat.reader import NativeRow
-from wechat_ai_bridge.wechat.errors import GatewayError
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.gateway import GatewayConfig, NativeClient, NativeSender
+from chat_bridge.wechat.images import static_gif
+from chat_bridge.wechat.reader import NativeRow
+from chat_bridge.wechat.errors import GatewayError
 
 
 class MemeNativeTests(unittest.TestCase):

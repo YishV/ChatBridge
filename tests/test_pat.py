@@ -5,7 +5,7 @@ try:
 except ImportError:
     zstandard = None
 
-from wechat_ai_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat
+from chat_bridge.wechat.native import PAT_TYPE, native_group_message, native_group_pat
 
 
 PAT_XML = (

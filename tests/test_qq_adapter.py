@@ -9,13 +9,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from wechat_ai_bridge.qq.config import QQSettings
-from wechat_ai_bridge.qq.events import map_event
-from wechat_ai_bridge.qq.gateway import QQGateway
-from wechat_ai_bridge.qq.onebot import OneBotClient, OneBotError
-from wechat_ai_bridge.qq.sender import QQSender
-from wechat_ai_bridge.qq.webhook import QQWebhookServer
-from wechat_ai_bridge.speech.gpt_sovits import GPTSoVITSSettings
+from chat_bridge.qq.config import QQSettings
+from chat_bridge.qq.events import map_event
+from chat_bridge.qq.gateway import QQGateway
+from chat_bridge.qq.onebot import OneBotClient, OneBotError
+from chat_bridge.qq.sender import QQSender
+from chat_bridge.qq.webhook import QQWebhookServer
+from chat_bridge.speech.gpt_sovits import GPTSoVITSSettings
 
 
 class OneBotServer:

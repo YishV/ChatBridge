@@ -6,8 +6,8 @@ from array import array
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.media.audio import AudioTools, inspect_wav, mix_wav
-from wechat_ai_bridge.media.kits import CoverError
+from chat_bridge.media.audio import AudioTools, inspect_wav, mix_wav
+from chat_bridge.media.kits import CoverError
 
 
 def tone(path, seconds=3, amplitude=8000, frequency=440):
@@ -65,14 +65,14 @@ class CoverAudioTests(unittest.TestCase):
         vocal, backing = self.root / 'v.wav', self.root / 'b.wav'
         tone(vocal)
         tone(backing)
-        with patch('wechat_ai_bridge.media.audio.os.link', side_effect=OSError('fixture publish failure')):
+        with patch('chat_bridge.media.audio.os.link', side_effect=OSError('fixture publish failure')):
             with self.assertRaises(OSError):
                 mix_wav(vocal, backing, self.root / 'mix.wav')
         self.assertFalse((self.root / 'mix.wav').exists())
 
     def test_non_finite_or_out_of_range_times_never_launch_decoder(self):
         tools = AudioTools('fixture-ffmpeg')
-        with patch('wechat_ai_bridge.media.audio.subprocess.run') as run:
+        with patch('chat_bridge.media.audio.subprocess.run') as run:
             for start, duration in [(float('nan'), 5), (0, float('inf')), (-1, 5), (0, 31), (0, 0)]:
                 with self.subTest(start=start, duration=duration), self.assertRaises(CoverError):
                     tools.decode(self.root / 'missing', self.root / 'out.wav', start=start, duration=duration)
@@ -101,7 +101,7 @@ class CoverAudioTests(unittest.TestCase):
             self.assertFalse(kwargs.get('shell', False))
             self.assertIn('-nostdin', args)
             tone(Path(args[-1]))
-        with patch('wechat_ai_bridge.media.audio.subprocess.run', side_effect=run):
+        with patch('chat_bridge.media.audio.subprocess.run', side_effect=run):
             AudioTools('fixture-ffmpeg').decode(source, destination, duration=3)
 
 

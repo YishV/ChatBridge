@@ -3,12 +3,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome
-from wechat_ai_bridge.models.client import ModelError
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.delivery import DeliveryService, SendReceipt
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage, Outcome
+from chat_bridge.models.client import ModelError
+from chat_bridge.qa.service import ChatService
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.delivery import DeliveryService, SendReceipt
 
 
 class CaptureModel:
@@ -61,7 +61,7 @@ class PersistentChatTests(unittest.TestCase):
         reopened = StateStore(self.path)
         self.addCleanup(reopened.close)
         model, sender = CaptureModel(), Sender()
-        with patch('wechat_ai_bridge.qa.service.monotonic', return_value=100000):
+        with patch('chat_bridge.qa.service.monotonic', return_value=100000):
             service = self.build(reopened, model, sender)
             self.assertEqual(model.calls, [])
             self.assertEqual(sender.calls, 0)

@@ -3,10 +3,10 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome
-from wechat_ai_bridge.models.client import ModelError
-from wechat_ai_bridge.qa.service import ChatService
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage, Outcome
+from chat_bridge.models.client import ModelError
+from chat_bridge.qa.service import ChatService
 
 
 def report():
@@ -43,7 +43,7 @@ class Model:
 
 class WeatherChatTests(unittest.TestCase):
     def setUp(self):
-        from wechat_ai_bridge.state.store import StateStore
+        from chat_bridge.state.store import StateStore
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.store=StateStore(Path(self.temp.name)/'state.db'); self.addCleanup(self.store.close)
         self.store.allow_group('group-a'); self.store.allow_group('group-b')
@@ -120,7 +120,7 @@ class WeatherChatTests(unittest.TestCase):
             if kind=='weather': self.assertNotIn('human-b',str(messages))
 
     def test_api_failure_returns_clear_text_without_second_model_hallucination(self):
-        from wechat_ai_bridge.weather.client import WeatherError
+        from chat_bridge.weather.client import WeatherError
         self.weather.lookup=lambda _: (_ for _ in ()).throw(WeatherError('weather_timeout'))
         result=self.process()
         self.assertEqual(result.outcome,Outcome.ANSWERED)

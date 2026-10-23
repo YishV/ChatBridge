@@ -6,16 +6,16 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock
 
-from wechat_ai_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeSender
-from wechat_ai_bridge.wechat.reader import EncryptedMessageReader, NativeRow
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.errors import GatewayFatalError
-from wechat_ai_bridge.wechat.instance import SingleInstance
-from wechat_ai_bridge.wechat.delivery import DeliveryService
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.message import Outcome, ProcessResult
-from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, DeliveryResult
+from chat_bridge.wechat.gateway import GatewayConfig, GatewayError, GatewayRunner, NativeSender
+from chat_bridge.wechat.reader import EncryptedMessageReader, NativeRow
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.errors import GatewayFatalError
+from chat_bridge.wechat.instance import SingleInstance
+from chat_bridge.wechat.delivery import DeliveryService
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.qa.service import ChatService
+from chat_bridge.message import Outcome, ProcessResult
+from chat_bridge.wechat.delivery import DeliveryOutcome, DeliveryResult
 
 
 def service_mock():

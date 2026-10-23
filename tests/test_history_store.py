@@ -5,7 +5,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.state.store import StateStore
 
 
 def chat(content="测试正文\n第二行", **changes):

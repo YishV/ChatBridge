@@ -5,8 +5,8 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from wechat_ai_bridge.wechat.errors import GatewayError
-from wechat_ai_bridge.wechat.reader import EncryptedMessageReader
+from chat_bridge.wechat.errors import GatewayError
+from chat_bridge.wechat.reader import EncryptedMessageReader
 
 
 class RecordingConnection:

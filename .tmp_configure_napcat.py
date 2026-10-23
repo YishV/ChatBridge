@@ -12,7 +12,7 @@ for path in files:
     data = json.loads(path.read_text(encoding='utf-8'))
     network = data.setdefault('network', {})
     network['httpServers'] = [{
-        'name': 'wechat-ai-bridge-api',
+        'name': 'chatbridge-api',
         'enable': True,
         'port': 3000,
         'host': '127.0.0.1',
@@ -23,7 +23,7 @@ for path in files:
         'debug': False,
     }]
     network['httpClients'] = [{
-        'name': 'wechat-ai-bridge-webhook',
+        'name': 'chatbridge-webhook',
         'enable': True,
         'url': 'http://127.0.0.1:8081/onebot',
         'messagePostFormat': 'array',

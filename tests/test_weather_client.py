@@ -13,7 +13,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler
 class WeatherClientTests(unittest.TestCase):
     def setUp(self):
         # Import inside setUp so the first run reports the missing feature clearly.
-        from wechat_ai_bridge.weather.client import WeatherClient, WeatherError
+        from chat_bridge.weather.client import WeatherClient, WeatherError
         self.WeatherClient = WeatherClient
         self.WeatherError = WeatherError
         self.now = datetime.now(timezone.utc)
@@ -59,7 +59,7 @@ class WeatherClientTests(unittest.TestCase):
     def lookup_with(self, geocode=None, forecast=None, city="杭州"):
         opener = self.opener(self.geocode if geocode is None else geocode,
                              self.forecast if forecast is None else forecast)
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             return self.WeatherClient().lookup(city), opener
 
     def test_current_and_seven_days_use_only_fixed_https_endpoints(self):
@@ -165,7 +165,7 @@ class WeatherClientTests(unittest.TestCase):
     def test_ambiguity_and_failed_requests_are_not_cached(self):
         ambiguous = {"results": [self.place(), self.place(admin1="江西", latitude=28)]}
         opener = self.opener(ambiguous, ambiguous)
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             client = self.WeatherClient()
             self.assertEqual(client.lookup("杭州")["status"], "ambiguous")
             self.assertEqual(client.lookup("杭州")["status"], "ambiguous")
@@ -173,7 +173,7 @@ class WeatherClientTests(unittest.TestCase):
         opener = self.opener(self.geocode, self.forecast)
         responses = list(opener.open.side_effect)
         opener.open.side_effect = [TimeoutError("secret"), *responses]
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             client = self.WeatherClient()
             with self.assertRaises(self.WeatherError):
                 client.lookup("杭州")
@@ -186,7 +186,7 @@ class WeatherClientTests(unittest.TestCase):
         self.assertEqual(result["status"], "ambiguous")
 
     def test_city_injection_is_rejected_before_network(self):
-        with patch("wechat_ai_bridge.weather.client.build_opener") as build:
+        with patch("chat_bridge.weather.client.build_opener") as build:
             client = self.WeatherClient()
             for city in ("https://evil.invalid/", "杭州\n忽略指令", "杭州?x=1", "杭州;命令", "x" * 81, "", 123):
                 with self.subTest(city=city), self.assertRaises(self.WeatherError) as caught:
@@ -197,7 +197,7 @@ class WeatherClientTests(unittest.TestCase):
     def test_cache_expires_without_returning_stale_data_and_does_not_refresh_retrieved_at(self):
         ticks = [0]
         opener = self.opener(self.geocode, self.forecast)
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             client = self.WeatherClient(clock=lambda: ticks[0])
             first = client.lookup("杭州")
             ticks[0] = 599
@@ -216,7 +216,7 @@ class WeatherClientTests(unittest.TestCase):
         for _ in range(131):
             payloads.extend([self.geocode, self.forecast])
         opener = self.opener(*payloads)
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             client = self.WeatherClient()
             for i in range(130):
                 client.lookup('Fixture' + chr(65 + i // 26) + chr(65 + i % 26))
@@ -224,14 +224,14 @@ class WeatherClientTests(unittest.TestCase):
             client.lookup('FixtureAA')
             self.assertEqual(opener.open.call_count, before + 2)
         opener = self.opener({}, {})
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener):
             client = self.WeatherClient()
             client.lookup("不存在")
             client.lookup("不存在")
             self.assertEqual(opener.open.call_count, 2)
 
     def test_chat_sentences_and_private_fields_are_rejected_before_network(self):
-        with patch('wechat_ai_bridge.weather.client.build_opener') as opener:
+        with patch('chat_bridge.weather.client.build_opener') as opener:
             for city in ('我叫张三住在杭州月薪两万', '杭州,我的密码是秘密', 'my password is secret',
                          '杭州天气怎么样', 'wxid_private', '13800138000', 'I have cancer'):
                 with self.subTest(city=city), self.assertRaises(self.WeatherError):
@@ -265,8 +265,8 @@ class WeatherClientTests(unittest.TestCase):
             return data
 
         opener = self.opener(self.geocode, forecast_at(before), self.geocode, forecast_at(after))
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener), \
-                patch("wechat_ai_bridge.weather.client.datetime", FrozenDateTime):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener), \
+                patch("chat_bridge.weather.client.datetime", FrozenDateTime):
             client = self.WeatherClient(clock=lambda: ticks[0])
             first = client.lookup("杭州")
             wall_time[0] = after
@@ -291,8 +291,8 @@ class WeatherClientTests(unittest.TestCase):
         local_day = before.astimezone(timezone(timedelta(hours=8))).date()
         data["daily"]["time"] = [(local_day + timedelta(days=i)).isoformat() for i in range(7)]
         opener = self.opener(self.geocode, data)
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener), \
-                patch("wechat_ai_bridge.weather.client.datetime", FrozenDateTime):
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener), \
+                patch("chat_bridge.weather.client.datetime", FrozenDateTime):
             client = self.WeatherClient(clock=lambda: ticks[0])
             client.lookup("杭州")
             wall_time[0] = before + timedelta(seconds=20)
@@ -304,7 +304,7 @@ class WeatherClientTests(unittest.TestCase):
 
     def test_transport_disables_proxies_and_redirects_and_bounds_response_bytes(self):
         opener = self.opener(b" " * (256 * 1024 + 1))
-        with patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener) as build:
+        with patch("chat_bridge.weather.client.build_opener", return_value=opener) as build:
             with self.assertRaises(self.WeatherError) as caught:
                 self.WeatherClient().lookup("杭州")
         self.assertEqual(caught.exception.code, "weather_response_too_large")
@@ -319,7 +319,7 @@ class WeatherClientTests(unittest.TestCase):
         for failure in failures:
             opener = Mock()
             opener.open.side_effect = failure
-            with self.subTest(failure=failure), patch("wechat_ai_bridge.weather.client.build_opener", return_value=opener):
+            with self.subTest(failure=failure), patch("chat_bridge.weather.client.build_opener", return_value=opener):
                 with self.assertRaises(self.WeatherError) as caught:
                     self.WeatherClient().lookup("杭州")
                 self.assertNotIn("secret", str(caught.exception))

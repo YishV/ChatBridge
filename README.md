@@ -1,6 +1,7 @@
-# wechat-ai-bridge
+# ChatBridge
 
-本机微信 + QQ 群聊/私聊 AI 桥接。微信走已核验的 native hook，QQ 走 NapCat/OneBot 11；模型使用 DeepSeek，语音可选接本机 GPT-SoVITS。
+微信 + QQ 的本地 AI 聊天桥。微信走已核验的 native hook，QQ 走 NapCat/OneBot 11；模型使用 DeepSeek，语音可选接本机 GPT-SoVITS。
+
 
 ## 能力
 
@@ -22,7 +23,7 @@
 要求：Windows、Python 3.12、[uv](https://docs.astral.sh/uv/)、已核验的微信 native hook 或已登录的 NapCat。
 
 ```powershell
-cd D:\workspace\自用\wechat-ai-bridge
+cd D:\workspace\自用\chatbridge
 uv sync --extra native
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 notepad .env
@@ -71,14 +72,14 @@ NapCat 不在默认路径时：
 
 ```powershell
 # 微信：先启动微信/native hook
-uv run --extra native wechat-ai-bridge run --check
-uv run --extra native wechat-ai-bridge run
+uv run --extra native chatbridge run --check
+uv run --extra native chatbridge run
 
 # QQ：先启动 NapCat 并登录
-uv run --extra native wechat-ai-bridge qq groups
-uv run --extra native wechat-ai-bridge qq friends
-uv run --extra native wechat-ai-bridge qq check
-uv run --extra native wechat-ai-bridge qq run
+uv run --extra native chatbridge qq groups
+uv run --extra native chatbridge qq friends
+uv run --extra native chatbridge qq check
+uv run --extra native chatbridge qq run
 ```
 
 `qq run` 运行期间不要再跑 `qq check`，因为检查会占用 8081 端口。
@@ -103,10 +104,10 @@ uv run --extra native wechat-ai-bridge qq run
 ## 运行时
 
 ```text
-wechat-ai-bridge run            微信网关
-wechat-ai-bridge qq run         QQ 网关
-wechat-ai-bridge singing-worker 曲库翻唱 worker
-wechat-ai-bridge panel          本机状态与记忆面板
+chatbridge run            微信网关
+chatbridge qq run         QQ 网关
+chatbridge singing-worker 曲库翻唱 worker
+chatbridge panel          本机状态与记忆面板
 ```
 
 - 微信状态库：`data/runtime/chat-state.sqlite3`
@@ -136,7 +137,7 @@ git diff --check
 ## 目录
 
 ```text
-src/wechat_ai_bridge/
+src/chat_bridge/
   wechat/       微信读取、native hook、发送与语音 UI
   qq/           NapCat/OneBot、webhook、私聊、图片、语音发送
   dispatch/     去重、冷却、配额与自然接话

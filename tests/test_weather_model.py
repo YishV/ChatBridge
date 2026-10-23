@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
+from chat_bridge.models.client import ChatCompletionsClient, ModelError
 
 
 class WeatherModelTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class WeatherModelTests(unittest.TestCase):
             {'type':'function','function':{'name':name,'arguments':json.dumps(plan)}} for _ in range(calls)]}}]}
         opener = Mock()
         opener.open.return_value = io.BytesIO(json.dumps(body).encode())
-        with patch('wechat_ai_bridge.models.client.build_opener',return_value=opener):
+        with patch('chat_bridge.models.client.build_opener',return_value=opener):
             result = client.complete_weather([{'role':'user','content':'北京明天要带伞吗'}])
         return result, json.loads(opener.open.call_args.args[0].data)
 

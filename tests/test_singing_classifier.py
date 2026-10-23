@@ -1,7 +1,7 @@
 import unittest
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.qa.service import ChatService
+from chat_bridge.message import IncomingMessage
+from chat_bridge.qa.service import ChatService
 
 
 class ClassifierModel:

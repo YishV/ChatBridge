@@ -13,8 +13,8 @@
 ### Task 1: 曲库配置与目录
 
 **Files:**
-- Create: `src/wechat_ai_bridge/singing/__init__.py`
-- Create: `src/wechat_ai_bridge/singing/config.py`
+- Create: `src/chat_bridge/singing/__init__.py`
+- Create: `src/chat_bridge/singing/config.py`
 - Create: `data/music/README.md`
 - Modify: `.gitignore`
 - Test: `tests/test_singing_config.py`
@@ -27,7 +27,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.singing.config import SingingSettings
+from chat_bridge.singing.config import SingingSettings
 
 
 class SingingSettingsTests(unittest.TestCase):
@@ -64,17 +64,17 @@ Run:
 .\.venv\Scripts\python.exe -m unittest tests.test_singing_config -v
 ```
 
-Expected: `ModuleNotFoundError: No module named 'wechat_ai_bridge.singing'`
+Expected: `ModuleNotFoundError: No module named 'chat_bridge.singing'`
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/wechat_ai_bridge/singing/__init__.py`:
+`src/chat_bridge/singing/__init__.py`:
 
 ```python
 """Local song library and RVC cover jobs for the QQ adapter."""
 ```
 
-`src/wechat_ai_bridge/singing/config.py`:
+`src/chat_bridge/singing/config.py`:
 
 ```python
 """Environment-backed settings for the optional singing feature."""
@@ -204,7 +204,7 @@ Expected: tests PASS；`git check-ignore` 输出 `data/music/*`。
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/singing data/music/README.md tests/test_singing_config.py .gitignore
+git add src/chat_bridge/singing data/music/README.md tests/test_singing_config.py .gitignore
 git commit -m "feat(singing): 添加曲库配置与目录"
 ```
 
@@ -213,7 +213,7 @@ git commit -m "feat(singing): 添加曲库配置与目录"
 ### Task 2: 曲库扫描、匹配和随机
 
 **Files:**
-- Create: `src/wechat_ai_bridge/singing/library.py`
+- Create: `src/chat_bridge/singing/library.py`
 - Test: `tests/test_singing_library.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -223,7 +223,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.library import Song, SongLibrary
+from chat_bridge.singing.library import Song, SongLibrary
 
 
 class SongLibraryTests(unittest.TestCase):
@@ -277,7 +277,7 @@ Expected: import error for `singing.library`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/wechat_ai_bridge/singing/library.py`:
+`src/chat_bridge/singing/library.py`:
 
 ```python
 """Bounded local audio library with title matching and random choice."""
@@ -377,7 +377,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/singing/library.py tests/test_singing_library.py
+git add src/chat_bridge/singing/library.py tests/test_singing_library.py
 git commit -m "feat(singing): 添加曲库扫描与匹配"
 ```
 
@@ -386,7 +386,7 @@ git commit -m "feat(singing): 添加曲库扫描与匹配"
 ### Task 3: 点歌意图解析
 
 **Files:**
-- Create: `src/wechat_ai_bridge/singing/intent.py`
+- Create: `src/chat_bridge/singing/intent.py`
 - Test: `tests/test_singing_intent.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -394,7 +394,7 @@ git commit -m "feat(singing): 添加曲库扫描与匹配"
 ```python
 import unittest
 
-from wechat_ai_bridge.singing.intent import SingingRequest, parse_request
+from chat_bridge.singing.intent import SingingRequest, parse_request
 
 
 class SingingIntentTests(unittest.TestCase):
@@ -426,7 +426,7 @@ Expected: import error.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/wechat_ai_bridge/singing/intent.py`:
+`src/chat_bridge/singing/intent.py`:
 
 ```python
 """Deterministic parsing of QQ singing requests."""
@@ -484,7 +484,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/singing/intent.py tests/test_singing_intent.py
+git add src/chat_bridge/singing/intent.py tests/test_singing_intent.py
 git commit -m "feat(singing): 添加点歌意图解析"
 ```
 
@@ -493,7 +493,7 @@ git commit -m "feat(singing): 添加点歌意图解析"
 ### Task 4: SQLite 任务队列
 
 **Files:**
-- Create: `src/wechat_ai_bridge/singing/queue.py`
+- Create: `src/chat_bridge/singing/queue.py`
 - Test: `tests/test_singing_queue.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -503,7 +503,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.queue import QueueBusy, SingingQueue
+from chat_bridge.singing.queue import QueueBusy, SingingQueue
 
 
 class SingingQueueTests(unittest.TestCase):
@@ -547,7 +547,7 @@ Expected: import error.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/wechat_ai_bridge/singing/queue.py`:
+`src/chat_bridge/singing/queue.py`:
 
 ```python
 """SQLite-backed queue for local RVC cover jobs."""
@@ -698,7 +698,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/singing/queue.py tests/test_singing_queue.py
+git add src/chat_bridge/singing/queue.py tests/test_singing_queue.py
 git commit -m "feat(singing): 添加 SQLite 翻唱队列"
 ```
 
@@ -707,8 +707,8 @@ git commit -m "feat(singing): 添加 SQLite 翻唱队列"
 ### Task 5: OneBot 文件上传与 QQSender
 
 **Files:**
-- Modify: `src/wechat_ai_bridge/qq/onebot.py`
-- Modify: `src/wechat_ai_bridge/qq/sender.py`
+- Modify: `src/chat_bridge/qq/onebot.py`
+- Modify: `src/chat_bridge/qq/sender.py`
 - Test: `tests/test_qq_adapter.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -816,7 +816,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/qq/onebot.py src/wechat_ai_bridge/qq/sender.py tests/test_qq_adapter.py
+git add src/chat_bridge/qq/onebot.py src/chat_bridge/qq/sender.py tests/test_qq_adapter.py
 git commit -m "feat(qq): 支持上传翻唱文件"
 ```
 
@@ -826,7 +826,7 @@ git commit -m "feat(qq): 支持上传翻唱文件"
 
 **Files:**
 - Create: `scripts/rvc_runner.py`
-- Create: `src/wechat_ai_bridge/singing/renderer.py`
+- Create: `src/chat_bridge/singing/renderer.py`
 - Test: `tests/test_singing_renderer.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -837,8 +837,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.singing.config import SingingSettings
-from wechat_ai_bridge.singing.renderer import CoverRenderer, RenderError
+from chat_bridge.singing.config import SingingSettings
+from chat_bridge.singing.renderer import CoverRenderer, RenderError
 
 
 class CoverRendererTests(unittest.TestCase):
@@ -894,7 +894,7 @@ sys.argv = [str(script), *sys.argv[2:]]
 runpy.run_path(str(script), run_name='__main__')
 ```
 
-`src/wechat_ai_bridge/singing/renderer.py`:
+`src/chat_bridge/singing/renderer.py`:
 
 ```python
 """Subprocess orchestration for Demucs + RVC cover rendering."""
@@ -905,7 +905,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from wechat_ai_bridge.singing.config import SingingSettings
+from chat_bridge.singing.config import SingingSettings
 
 
 class RenderError(Exception):
@@ -1009,7 +1009,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add scripts/rvc_runner.py src/wechat_ai_bridge/singing/renderer.py tests/test_singing_renderer.py
+git add scripts/rvc_runner.py src/chat_bridge/singing/renderer.py tests/test_singing_renderer.py
 git commit -m "feat(singing): 添加 RVC 渲染器"
 ```
 
@@ -1018,8 +1018,8 @@ git commit -m "feat(singing): 添加 RVC 渲染器"
 ### Task 7: 点歌协调器与后台 worker
 
 **Files:**
-- Create: `src/wechat_ai_bridge/singing/worker.py`
-- Create: `src/wechat_ai_bridge/singing/coordinator.py`
+- Create: `src/chat_bridge/singing/worker.py`
+- Create: `src/chat_bridge/singing/coordinator.py`
 - Test: `tests/test_singing_worker.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1029,11 +1029,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.config import SingingSettings
-from wechat_ai_bridge.singing.coordinator import SingingCoordinator
-from wechat_ai_bridge.singing.queue import SingingQueue
-from wechat_ai_bridge.singing.worker import SingingWorker
-from wechat_ai_bridge.wechat.delivery import SendReceipt
+from chat_bridge.singing.config import SingingSettings
+from chat_bridge.singing.coordinator import SingingCoordinator
+from chat_bridge.singing.queue import SingingQueue
+from chat_bridge.singing.worker import SingingWorker
+from chat_bridge.wechat.delivery import SendReceipt
 
 
 class FakeSender:
@@ -1084,16 +1084,16 @@ Expected: import error.
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/wechat_ai_bridge/singing/coordinator.py`:
+`src/chat_bridge/singing/coordinator.py`:
 
 ```python
 """Turn a parsed QQ request into a queued singing job."""
 
 from pathlib import Path
 
-from wechat_ai_bridge.singing.intent import SingingRequest, parse_request
-from wechat_ai_bridge.singing.library import SongLibrary
-from wechat_ai_bridge.singing.queue import QueueBusy, SingingQueue
+from chat_bridge.singing.intent import SingingRequest, parse_request
+from chat_bridge.singing.library import SongLibrary
+from chat_bridge.singing.queue import QueueBusy, SingingQueue
 
 
 class SingingCoordinator:
@@ -1137,7 +1137,7 @@ class SingingCoordinator:
         return True
 ```
 
-`src/wechat_ai_bridge/singing/worker.py`:
+`src/chat_bridge/singing/worker.py`:
 
 ```python
 """Background worker that renders queued covers and sends the result."""
@@ -1147,7 +1147,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from wechat_ai_bridge.singing.renderer import RenderError
+from chat_bridge.singing.renderer import RenderError
 
 
 class SingingWorker:
@@ -1221,7 +1221,7 @@ Expected: PASS（测试覆盖 MP3 分支；语音条分支在后续任务补测�
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/singing/coordinator.py src/wechat_ai_bridge/singing/worker.py tests/test_singing_worker.py
+git add src/chat_bridge/singing/coordinator.py src/chat_bridge/singing/worker.py tests/test_singing_worker.py
 git commit -m "feat(singing): 添加点歌协调器与 worker"
 ```
 
@@ -1230,8 +1230,8 @@ git commit -m "feat(singing): 添加点歌协调器与 worker"
 ### Task 8: QQ 网关、CLI 与启动脚本接入
 
 **Files:**
-- Modify: `src/wechat_ai_bridge/qq/gateway.py`
-- Modify: `src/wechat_ai_bridge/cli.py`
+- Modify: `src/chat_bridge/qq/gateway.py`
+- Modify: `src/chat_bridge/cli.py`
 - Modify: `scripts/start.ps1`
 - Modify: `.env.example`
 - Modify: `README.md`
@@ -1243,8 +1243,8 @@ git commit -m "feat(singing): 添加点歌协调器与 worker"
 import unittest
 from types import SimpleNamespace
 
-from wechat_ai_bridge.qq.gateway import QQGateway
-from wechat_ai_bridge.qq.config import QQSettings
+from chat_bridge.qq.gateway import QQGateway
+from chat_bridge.qq.config import QQSettings
 
 
 class Singing:
@@ -1313,12 +1313,12 @@ In `main`, before `if args.command == 'qq':`:
 
 ```python
         if args.command == 'singing-worker':
-            from wechat_ai_bridge.singing.config import SingingSettings
-            from wechat_ai_bridge.singing.queue import SingingQueue
-            from wechat_ai_bridge.singing.renderer import CoverRenderer
-            from wechat_ai_bridge.singing.worker import SingingWorker
-            from wechat_ai_bridge.qq.config import QQSettings
-            from wechat_ai_bridge.qq.sender import QQSender
+            from chat_bridge.singing.config import SingingSettings
+            from chat_bridge.singing.queue import SingingQueue
+            from chat_bridge.singing.renderer import CoverRenderer
+            from chat_bridge.singing.worker import SingingWorker
+            from chat_bridge.qq.config import QQSettings
+            from chat_bridge.qq.sender import QQSender
             singing = SingingSettings.from_env()
             if not singing.enabled:
                 raise GatewayError('singing_disabled')
@@ -1338,10 +1338,10 @@ In `main`, before `if args.command == 'qq':`:
 In `run_qq`, declare `singing_queue = None` before the existing `try`, then after `sender` creation:
 
 ```python
-        from wechat_ai_bridge.singing.config import SingingSettings
-        from wechat_ai_bridge.singing.coordinator import SingingCoordinator
-        from wechat_ai_bridge.singing.library import SongLibrary
-        from wechat_ai_bridge.singing.queue import SingingQueue
+        from chat_bridge.singing.config import SingingSettings
+        from chat_bridge.singing.coordinator import SingingCoordinator
+        from chat_bridge.singing.library import SongLibrary
+        from chat_bridge.singing.queue import SingingQueue
         singing_settings = SingingSettings.from_env()
         singing = None
         if singing_settings.enabled:
@@ -1380,7 +1380,7 @@ Create `scripts/start-singing-worker.ps1`:
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 $python = Join-Path $Root '.venv\Scripts\python.exe'
-& $python -m wechat_ai_bridge singing-worker
+& $python -m chat_bridge singing-worker
 ```
 
 Call `Start-SingingWorker` in `Start-QQ` before gateway.
@@ -1428,7 +1428,7 @@ Expected: tests PASS；`parse ok`。
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add src/wechat_ai_bridge/qq/gateway.py src/wechat_ai_bridge/cli.py scripts/start.ps1 scripts/start-singing-worker.ps1 .env.example README.md tests/test_qq_singing_gateway.py
+git add src/chat_bridge/qq/gateway.py src/chat_bridge/cli.py scripts/start.ps1 scripts/start-singing-worker.ps1 .env.example README.md tests/test_qq_singing_gateway.py
 git commit -m "feat(qq): 接入曲库点歌与翻唱 worker"
 ```
 
@@ -1512,7 +1512,7 @@ SINGING_VOICE_EXCERPT_SECONDS=30
 worker 也可以单独启动：
 
 ```powershell
-python -m wechat_ai_bridge singing-worker
+python -m chat_bridge singing-worker
 ```
 
 成品缓存在 `data/runtime/covers/`，同一首歌第二次点歌会直接复用。

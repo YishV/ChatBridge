@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.settings import Settings
+from chat_bridge.settings import Settings
 
 
 class VisionSettingsTests(unittest.TestCase):

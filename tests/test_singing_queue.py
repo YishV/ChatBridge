@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.singing.queue import QueueBusy, SingingQueue
+from chat_bridge.singing.queue import QueueBusy, SingingQueue
 
 
 class SingingQueueTests(unittest.TestCase):

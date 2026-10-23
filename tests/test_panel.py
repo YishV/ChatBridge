@@ -3,10 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.health import collect_health
-from wechat_ai_bridge.logging_setup import configure_logging, tail_log
-from wechat_ai_bridge.memory import MemoryStore
-from wechat_ai_bridge.settings import Settings
+from chat_bridge.health import collect_health
+from chat_bridge.logging_setup import configure_logging, tail_log
+from chat_bridge.memory import MemoryStore
+from chat_bridge.settings import Settings
 
 
 def settings(root: Path) -> Settings:

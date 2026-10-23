@@ -5,14 +5,14 @@ QQ 和微信私聊支持按用户保存长期记忆。群聊不读取、不注�
 ## 开关
 
 ```dotenv
-WECHAT_AI_BRIDGE_MEMORY_ENABLED=true
-WECHAT_AI_BRIDGE_MEMORY_DB=data/runtime/memory.sqlite3
+CHAT_BRIDGE_MEMORY_ENABLED=true
+CHAT_BRIDGE_MEMORY_DB=data/runtime/memory.sqlite3
 # 每 N 轮私聊抽取一次，默认 3；1 表示每轮
-WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY=3
+CHAT_BRIDGE_MEMORY_UPDATE_EVERY=3
 # 每 N 轮生成一次摘要，默认 30
-WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY=30
+CHAT_BRIDGE_MEMORY_SUMMARY_EVERY=30
 # 后台任务队列上限，满了会丢弃并写日志
-WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE=64
+CHAT_BRIDGE_MEMORY_QUEUE_SIZE=64
 ```
 
 修改 `.env` 后重启对应网关。QQ 和微信共用一个数据库，但用 `platform` 字段隔离。

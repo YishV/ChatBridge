@@ -7,15 +7,15 @@ from unittest.mock import Mock
 
 from PIL import Image
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage,Outcome
-from wechat_ai_bridge.models.client import ModelError
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.vision.inbox import VisionInbox
-from wechat_ai_bridge.vision.media import normalize_image
-from wechat_ai_bridge.wechat.gateway import GatewayRunner
-from wechat_ai_bridge.wechat.reader import NativeRow
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage,Outcome
+from chat_bridge.models.client import ModelError
+from chat_bridge.qa.service import ChatService
+from chat_bridge.state.store import StateStore
+from chat_bridge.vision.inbox import VisionInbox
+from chat_bridge.vision.media import normalize_image
+from chat_bridge.wechat.gateway import GatewayRunner
+from chat_bridge.wechat.reader import NativeRow
 
 
 class Model:

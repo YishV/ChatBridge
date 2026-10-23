@@ -8,8 +8,8 @@ from array import array
 from pathlib import Path
 from unittest.mock import patch
 
-from wechat_ai_bridge.media.cover import CoverConfig, CoverSample
-from wechat_ai_bridge.media.kits import CoverError
+from chat_bridge.media.cover import CoverConfig, CoverSample
+from chat_bridge.media.kits import CoverError
 
 
 def wav(path, seconds=3):
@@ -193,7 +193,7 @@ class CoverSampleTests(unittest.TestCase):
 
     def test_interrupted_mix_publication_can_resume_without_cloud_generation(self):
         self.prepare()
-        with patch('wechat_ai_bridge.media.audio._publish', side_effect=OSError('fixture publication interruption')):
+        with patch('chat_bridge.media.audio._publish', side_effect=OSError('fixture publication interruption')):
             with self.assertRaises(OSError):
                 self.sample.run('trial')
         self.assertEqual(self.provider.posts, ['separation', 'conversion'])
@@ -203,10 +203,10 @@ class CoverSampleTests(unittest.TestCase):
         self.assertEqual(self.provider.posts, ['separation', 'conversion'])
 
     def test_cover_check_does_not_create_chat_store_or_call_chat_model(self):
-        import wechat_ai_bridge.cli as cli
-        with patch('sys.argv', ['wechat-ai-bridge', 'cover', 'check']), \
+        import chat_bridge.cli as cli
+        with patch('sys.argv', ['chatbridge', 'cover', 'check']), \
              patch.object(cli, 'StateStore') as store, patch.object(cli, 'create_model') as model, \
-             patch('wechat_ai_bridge.media.cover.CoverConfig.from_env', return_value=self.config), \
+             patch('chat_bridge.media.cover.CoverConfig.from_env', return_value=self.config), \
              patch('sys.stdout', new_callable=io.StringIO):
             cli.main()
         store.assert_not_called()

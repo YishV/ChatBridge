@@ -2,11 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.singing.config import SingingSettings
-from wechat_ai_bridge.singing.coordinator import SingingCoordinator
-from wechat_ai_bridge.singing.library import SongLibrary
-from wechat_ai_bridge.singing.queue import SingingQueue
+from chat_bridge.message import IncomingMessage
+from chat_bridge.singing.config import SingingSettings
+from chat_bridge.singing.coordinator import SingingCoordinator
+from chat_bridge.singing.library import SongLibrary
+from chat_bridge.singing.queue import SingingQueue
 
 
 class Sender:

@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler
 
-from wechat_ai_bridge.models.client import ChatCompletionsClient, ModelError
-from wechat_ai_bridge.settings import Settings
+from chat_bridge.models.client import ChatCompletionsClient, ModelError
+from chat_bridge.settings import Settings
 
 
 class ModelReliabilityTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class ModelReliabilityTests(unittest.TestCase):
 
     def complete_body(self, body):
         opener = self.response(body)
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             return self.client().complete([{"role": "user", "content": "fixture-prompt"}])
 
     def assert_body_error(self, body, code, retryable):
@@ -84,7 +84,7 @@ class ModelReliabilityTests(unittest.TestCase):
         response.read.side_effect = IncompleteRead(b"fixture-private", 100)
         opener = Mock()
         opener.open.return_value = response
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             with self.assertRaises(ModelError) as caught:
                 self.client().complete([])
         self.assertEqual(caught.exception.code, "model_network_error")
@@ -95,7 +95,7 @@ class ModelReliabilityTests(unittest.TestCase):
     def test_bad_status_line_is_retryable_network_error(self):
         opener = Mock()
         opener.open.side_effect = BadStatusLine("fixture-private-status")
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             with self.assertRaises(ModelError) as caught:
                 self.client().complete([])
         self.assertEqual(caught.exception.code, "model_network_error")
@@ -110,7 +110,7 @@ class ModelReliabilityTests(unittest.TestCase):
         response.read.side_effect = LineTooLong("fixture-private-header")
         opener = Mock()
         opener.open.return_value = response
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             with self.assertRaises(ModelError) as caught:
                 self.client().complete([])
         self.assertEqual(caught.exception.code, "model_network_error")
@@ -125,7 +125,7 @@ class ModelReliabilityTests(unittest.TestCase):
         response.read.side_effect = lambda size: b"x" * size
         opener = Mock()
         opener.open.return_value = response
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             with self.assertRaises(ModelError) as caught:
                 self.client().complete([])
         self.assertEqual(caught.exception.code, "model_response_too_large")
@@ -135,7 +135,7 @@ class ModelReliabilityTests(unittest.TestCase):
     def test_json_whitespace_is_valid_and_default_payload_has_larger_budget(self):
         body = b' \n {"choices":[{"finish_reason":"stop","message":{"content":" fixture reply "}}]} \t'
         opener = self.response(body)
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener) as build:
+        with patch("chat_bridge.models.client.build_opener", return_value=opener) as build:
             self.assertEqual(self.client().complete([]), "fixture reply")
         self.assertEqual(opener.open.call_count, 1)
         self.assertEqual(opener.open.call_args.kwargs["timeout"], 45)
@@ -146,7 +146,7 @@ class ModelReliabilityTests(unittest.TestCase):
 
     def test_configured_timeout_and_max_tokens_are_used(self):
         opener = self.response(b'{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}')
-        with patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+        with patch("chat_bridge.models.client.build_opener", return_value=opener):
             self.client(timeout_seconds=60.5, max_tokens=2048).complete([])
         self.assertEqual(opener.open.call_args.kwargs["timeout"], 60.5)
         self.assertEqual(json.loads(opener.open.call_args.args[0].data)["max_tokens"], 2048)
@@ -162,7 +162,7 @@ class ModelReliabilityTests(unittest.TestCase):
         for status in (301, 400, 401, 403, 404, 408, 413, 422, 429, 500, 501, 502, 503, 504):
             opener = Mock()
             opener.open.side_effect = HTTPError("https://fixture-secret", status, "fixture-private-body", {}, None)
-            with self.subTest(status=status), patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+            with self.subTest(status=status), patch("chat_bridge.models.client.build_opener", return_value=opener):
                 with self.assertRaises(ModelError) as caught:
                     self.client().complete([])
                 self.assertEqual(caught.exception.code, f"model_http_{status}")
@@ -178,7 +178,7 @@ class ModelReliabilityTests(unittest.TestCase):
                             (OSError("fixture"), "model_network_error")):
             opener = Mock()
             opener.open.side_effect = error
-            with self.subTest(code=code), patch("wechat_ai_bridge.models.client.build_opener", return_value=opener):
+            with self.subTest(code=code), patch("chat_bridge.models.client.build_opener", return_value=opener):
                 with self.assertRaises(ModelError) as caught:
                     self.client().complete([])
                 self.assertEqual(caught.exception.code, code)
@@ -199,7 +199,7 @@ class ModelReliabilityTests(unittest.TestCase):
 
 class ModelReliabilitySettingsTests(unittest.TestCase):
     def settings(self, values):
-        with patch.dict(os.environ, values, clear=True), patch("wechat_ai_bridge.settings.load_dotenv"):
+        with patch.dict(os.environ, values, clear=True), patch("chat_bridge.settings.load_dotenv"):
             return Settings.from_env()
 
     def test_defaults(self):
@@ -208,7 +208,7 @@ class ModelReliabilitySettingsTests(unittest.TestCase):
         self.assertEqual(settings.model_max_tokens, 1200)
 
     def test_environment_overrides(self):
-        settings = self.settings({"WECHAT_AI_BRIDGE_MODEL_TIMEOUT_SECONDS": "60.5", "WECHAT_AI_BRIDGE_MODEL_MAX_TOKENS": "2048"})
+        settings = self.settings({"CHAT_BRIDGE_MODEL_TIMEOUT_SECONDS": "60.5", "CHAT_BRIDGE_MODEL_MAX_TOKENS": "2048"})
         self.assertEqual(settings.model_timeout_seconds, 60.5)
         self.assertEqual(settings.model_max_tokens, 2048)
 
@@ -218,7 +218,7 @@ class ModelReliabilitySettingsTests(unittest.TestCase):
             for value in values:
                 with self.subTest(name=name, value=value):
                     with self.assertRaises(ValueError) as caught:
-                        self.settings({f"WECHAT_AI_BRIDGE_MODEL_{name}": value})
+                        self.settings({f"CHAT_BRIDGE_MODEL_{name}": value})
                     self.assertNotIn("fixture", str(caught.exception))
 
 

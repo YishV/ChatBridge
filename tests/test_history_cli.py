@@ -5,11 +5,11 @@ from argparse import Namespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from wechat_ai_bridge import cli
-from wechat_ai_bridge.qa.identity import load_identity_key
-from wechat_ai_bridge.settings import Settings
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.errors import GatewayError
+from chat_bridge import cli
+from chat_bridge.qa.identity import load_identity_key
+from chat_bridge.settings import Settings
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.errors import GatewayError
 
 
 class Model:
@@ -35,7 +35,7 @@ class HistoryCliTests(unittest.TestCase):
 
     def test_separate_cli_invocations_restore_context_automatically(self):
         for event, text in [('one', '我喜欢跑步'), ('two', '我喜欢什么')]:
-            arguments = ['wechat-ai-bridge', 'ask', '--group', 'group-a', '--sender', 'fixture-member',
+            arguments = ['chatbridge', 'ask', '--group', 'group-a', '--sender', 'fixture-member',
                          '--message-id', event, '--text', text, '--mentioned']
             with patch('sys.argv', arguments), patch.object(cli.Settings, 'from_env', return_value=self.settings), \
                  patch.object(cli, 'create_model', return_value=self.model), patch('sys.stdout', new_callable=io.StringIO):

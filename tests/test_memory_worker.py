@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.memory import MemoryStore
-from wechat_ai_bridge.memory.worker import MemoryTask, MemoryWorker
+from chat_bridge.message import IncomingMessage
+from chat_bridge.memory import MemoryStore
+from chat_bridge.memory.worker import MemoryTask, MemoryWorker
 
 
 class Model:

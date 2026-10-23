@@ -7,8 +7,8 @@
 ## 进程
 
 ```text
-wechat-ai-bridge run       微信网关（现有 WeChat + native hook）
-wechat-ai-bridge qq run    QQ 网关（NapCat + OneBot 11）
+chatbridge run       微信网关（现有 WeChat + native hook）
+chatbridge qq run    QQ 网关（NapCat + OneBot 11）
 ```
 
 两个进程各自登录、各自重连、各自 SQLite，互不阻塞。也可以由 `scripts/start.ps1 -Target all` 分别拉起。

@@ -69,7 +69,7 @@ interaction=pat
 41  鼓掌
 ```
 
-完整表在 `src/wechat_ai_bridge/faces.py`。
+完整表在 `src/chat_bridge/faces.py`。
 
 ## 注意
 

@@ -1,6 +1,6 @@
 import unittest
 
-from wechat_ai_bridge.singing.intent import SingingRequest, parse_request
+from chat_bridge.singing.intent import SingingRequest, parse_request
 
 
 class SingingIntentTests(unittest.TestCase):

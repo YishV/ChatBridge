@@ -5,12 +5,12 @@ from contextlib import redirect_stderr
 from dataclasses import replace
 from pathlib import Path
 
-from wechat_ai_bridge.console_log import ConsoleLog
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.delivery import DeliveryService, DeliveryOutcome, SendReceipt
+from chat_bridge.console_log import ConsoleLog
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage, Outcome
+from chat_bridge.qa.service import ChatService
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.delivery import DeliveryService, DeliveryOutcome, SendReceipt
 
 
 class FakeModel:

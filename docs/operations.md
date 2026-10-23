@@ -11,7 +11,7 @@
 安装：
 
 ```powershell
-cd D:\workspace\自用\wechat-ai-bridge
+cd D:\workspace\自用\chatbridge
 uv sync --extra native
 # 微信语音条需要：
 uv sync --extra native --extra voice
@@ -35,13 +35,13 @@ notepad .env
 3. 启动网关：
 
 ```powershell
-uv run --extra native --extra voice wechat-ai-bridge run
+uv run --extra native --extra voice chatbridge run
 ```
 
 只检查、不发送：
 
 ```powershell
-uv run --extra native wechat-ai-bridge run --check
+uv run --extra native chatbridge run --check
 ```
 
 ### 2.2 QQ
@@ -51,15 +51,15 @@ uv run --extra native wechat-ai-bridge run --check
 3. 启动网关：
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq run
+uv run --extra native chatbridge qq run
 ```
 
 检查：
 
 ```powershell
-uv run --extra native wechat-ai-bridge qq groups
-uv run --extra native wechat-ai-bridge qq friends
-uv run --extra native wechat-ai-bridge qq check
+uv run --extra native chatbridge qq groups
+uv run --extra native chatbridge qq friends
+uv run --extra native chatbridge qq check
 ```
 
 注意：`qq run` 运行时不要再执行 `qq check`，因为它会占用 8081 端口。
@@ -153,7 +153,7 @@ netstat -ano | findstr :9880
 | 没有表情包 | 执行 `memes sync`，确认 `memesEnabled`；模型不一定每条都配图 |
 | 看图失败 | 必须是同一成员最近一张、120 秒内、明确 `@` 并要求看图 |
 | 语音失败 | 检查 GPT-SoVITS `/tts`、参考音频、`QQ_VOICE_ENABLED`；微信语音还需前台窗口和 VB-Cable |
-| 温度/天气失败 | 检查 `WECHAT_AI_BRIDGE_WEATHER_ENABLED` 和外网 |
+| 温度/天气失败 | 检查 `CHAT_BRIDGE_WEATHER_ENABLED` 和外网 |
 
 ## 6. 数据与安全
 

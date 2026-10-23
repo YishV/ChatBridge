@@ -4,10 +4,10 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.state.store import StateStore
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage
+from chat_bridge.qa.service import ChatService
+from chat_bridge.state.store import StateStore
 
 
 class Model:

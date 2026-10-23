@@ -27,7 +27,7 @@
 
 ```powershell
 uv run --extra native python -m unittest discover -s tests -v
-uv run --extra native wechat-ai-bridge run --check
+uv run --extra native chatbridge run --check
 git diff --check
 ```
 

@@ -3,13 +3,13 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from wechat_ai_bridge.dispatch.processor import MessageProcessor
-from wechat_ai_bridge.message import IncomingMessage, Outcome, ProcessResult
-from wechat_ai_bridge.models.client import ModelError
-from wechat_ai_bridge.qa.service import ChatService
-from wechat_ai_bridge.state.store import StateStore
-from wechat_ai_bridge.wechat.delivery import DeliveryOutcome, DeliveryService, SendReceipt
-from wechat_ai_bridge.wechat.errors import GatewayFatalError
+from chat_bridge.dispatch.processor import MessageProcessor
+from chat_bridge.message import IncomingMessage, Outcome, ProcessResult
+from chat_bridge.models.client import ModelError
+from chat_bridge.qa.service import ChatService
+from chat_bridge.state.store import StateStore
+from chat_bridge.wechat.delivery import DeliveryOutcome, DeliveryService, SendReceipt
+from chat_bridge.wechat.errors import GatewayFatalError
 
 
 class FakeModel:

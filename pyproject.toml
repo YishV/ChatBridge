@@ -1,13 +1,13 @@
 [project]
-name = "wechat-ai-bridge"
+name = "chatbridge"
 version = "0.1.0"
-description = "Modular WeChat group AI assistant scaffold"
+description = "ChatBridge：微信 + QQ 本地 AI 聊天助手"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = ["python-dotenv>=1.0,<2", "Pillow>=12,<13"]
 
 [project.scripts]
-wechat-ai-bridge = "wechat_ai_bridge.cli:main"
+chatbridge = "chat_bridge.cli:main"
 
 [project.optional-dependencies]
 media = ["imageio-ffmpeg>=0.6,<0.7"]
@@ -30,4 +30,4 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/wechat_ai_bridge"]
+packages = ["src/chat_bridge"]

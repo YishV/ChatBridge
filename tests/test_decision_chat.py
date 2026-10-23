@@ -1,8 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from wechat_ai_bridge.message import ChatReply, IncomingMessage
-from wechat_ai_bridge.qa.service import ChatService
+from chat_bridge.message import ChatReply, IncomingMessage
+from chat_bridge.qa.service import ChatService
 
 
 class DecisionModel:

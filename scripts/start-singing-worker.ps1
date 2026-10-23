@@ -7,4 +7,4 @@ if (-not (Test-Path -LiteralPath $python)) {
     throw '找不到 .venv，请先运行：uv sync --extra native'
 }
 $env:PYTHONPATH = Join-Path $Root 'src'
-& $python -m wechat_ai_bridge singing-worker
+& $python -m chat_bridge singing-worker

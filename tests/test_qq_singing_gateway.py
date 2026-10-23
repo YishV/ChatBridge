@@ -1,8 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from wechat_ai_bridge.qq.config import QQSettings
-from wechat_ai_bridge.qq.gateway import QQGateway
+from chat_bridge.qq.config import QQSettings
+from chat_bridge.qq.gateway import QQGateway
 
 
 class Singing:

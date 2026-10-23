@@ -71,8 +71,8 @@ function Stop-Listener([int]$Port, [string]$Label) {
 }
 
 function Stop-QQ {
-    Stop-Matching 'QQ 网关' 'wechat_ai_bridge\s+qq\s+run'
-    Stop-Matching '翻唱 worker' 'wechat_ai_bridge\s+singing-worker'
+    Stop-Matching 'QQ 网关' 'chat_bridge\s+qq\s+run'
+    Stop-Matching '翻唱 worker' 'chat_bridge\s+singing-worker'
     Stop-Listener 8081 'QQ webhook'
     Stop-Matching 'GPT-SoVITS API' 'api_v2\.py'
     Stop-Listener 9880 'GPT-SoVITS'
@@ -91,7 +91,7 @@ function Stop-QQ {
 }
 
 function Stop-WeChat {
-    Stop-Matching '微信网关' 'wechat_ai_bridge\s+run(\s|$)'
+    Stop-Matching '微信网关' 'chat_bridge\s+run(\s|$)'
 }
 
 function Show-Ports {
@@ -111,9 +111,9 @@ if ($Target -eq 'qq') {
 } elseif ($Target -eq 'wechat') {
     Stop-WeChat
 } elseif ($Target -eq 'singing') {
-    Stop-Matching '翻唱 worker' 'wechat_ai_bridge\s+singing-worker'
+    Stop-Matching '翻唱 worker' 'chat_bridge\s+singing-worker'
 } elseif ($Target -eq 'panel') {
-    Stop-Matching '运行面板' 'wechat_ai_bridge\s+panel'
+    Stop-Matching '运行面板' 'chat_bridge\s+panel'
 } else {
     Stop-QQ
     Stop-WeChat

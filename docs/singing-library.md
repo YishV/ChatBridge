@@ -51,7 +51,7 @@ SINGING_PITCH=0
 脚本会在 `SINGING_ENABLED=true` 时额外启动 worker。也可以单独启动：
 
 ```powershell
-python -m wechat_ai_bridge singing-worker
+python -m chat_bridge singing-worker
 ```
 
 ## 处理流程
