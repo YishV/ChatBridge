@@ -243,7 +243,8 @@ def run_qq(args, settings, emit):
                   'privates': len(qq.private_users), 'memeAssets': len(catalog.assets) if catalog else 0,
                   'memeCollectEnabled': meme_collector is not None,
                   'singingEnabled': singing is not None,
-                  'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port})
+                  'voiceEnabled': qq.voice_enabled, 'webhookPort': qq.webhook_port,
+                  'panelUrl': 'http://127.0.0.1:8767'})
             try:
                 gateway.run()
             except OSError:
@@ -309,7 +310,8 @@ def run_gateway(args, settings, store):
         'memeNativeReady': health.get('nativeStickerSend') is True,
         'voiceEnabled': settings.voice_enabled, 'voiceReady': voice_sender is not None,
         'weatherEnabled': settings.weather_enabled, 'weatherCacheSeconds': settings.weather_cache_seconds,
-        'visionEnabled': settings.vision_enabled, 'visionWindowSeconds': settings.vision_window_seconds}
+        'visionEnabled': settings.vision_enabled, 'visionWindowSeconds': settings.vision_window_seconds,
+        'panelUrl': 'http://127.0.0.1:8767'}
     if args.check:
         emit(status)
         return

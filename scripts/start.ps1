@@ -19,10 +19,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+$PanelUrl = 'http://127.0.0.1:8767'
 
 function Write-Step([string]$Text) {
     Write-Host "[start] $Text" -ForegroundColor Cyan
 }
+
+Write-Step "Web 面板：$PanelUrl（未启动时运行 .\scripts\start-panel.ps1）"
 
 function Read-EnvMap([string]$Path) {
     $map = @{}
@@ -191,6 +194,7 @@ function Start-WeChat {
 }
 
 if ($Target -eq 'all') {
+    Write-Step "Web 面板：$PanelUrl"
     $common = @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-NapCatHome', $NapCatHome)
     Start-Process -FilePath 'powershell.exe' -ArgumentList ($common + @('-Target', 'qq')) -WorkingDirectory $Root
     Start-Process -FilePath 'powershell.exe' -ArgumentList ($common + @('-Target', 'wechat')) -WorkingDirectory $Root

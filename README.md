@@ -41,6 +41,18 @@ notepad .env
 .\scripts\start.ps1 -Target all
 ```
 
+启动时会显示 Web 面板地址：
+
+```text
+http://127.0.0.1:8767
+```
+
+面板单独启动：
+
+```powershell
+.\scripts\start-panel.ps1
+```
+
 停止：
 
 ```powershell
@@ -73,6 +85,7 @@ uv run --extra native wechat-ai-bridge qq run
 
 ## 文档
 
+- [命令与脚本总览](docs/commands.md)：所有启动、停止、调试、清理命令
 - [运行手册](docs/operations.md)：启动/停止、验收、故障处理
 - [配置说明](docs/configuration.md)：`.env`、微信 gateway、NapCat、GPT-SoVITS
 - [架构](docs/architecture.md)：进程、分层、数据流
