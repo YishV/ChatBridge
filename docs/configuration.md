@@ -38,6 +38,11 @@ notepad .env
 | `WECHAT_AI_BRIDGE_VOICE_ENABLED` | `false` | 微信语音条开关，默认关闭 |
 | `WECHAT_AI_BRIDGE_VOICE_NAME` | `zh-CN-XiaoxiaoNeural` | Edge TTS 音色 |
 | `WECHAT_AI_BRIDGE_VOICE_MAX_CHARS` | `120` | 语音最大字数 |
+| `WECHAT_AI_BRIDGE_MEMORY_ENABLED` | `true` | 私聊长期记忆总开关 |
+| `WECHAT_AI_BRIDGE_MEMORY_DB` | `data/runtime/memory.sqlite3` | 记忆与摘要数据库 |
+| `WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY` | `3` | 每 N 轮私聊抽取一次记忆 |
+| `WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY` | `30` | 每 N 轮生成一次摘要；0 关闭 |
+| `WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE` | `64` | 记忆后台队列上限 |
 
 微信私聊额外配置在 `data/runtime/native-hook/gateway.json`：
 

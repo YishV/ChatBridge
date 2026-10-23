@@ -70,7 +70,7 @@ class ChatMemoryTests(unittest.TestCase):
     def test_auto_extraction_runs_after_reply(self):
         model = Model('{"action":"upsert","kind":"preference","key":"drink",'
                       '"content":"用户喜欢冰美式","confidence":0.95,"importance":0.7}')
-        chat = ChatService(model, '你是测试助手。', memory=self.store, platform='qq')
+        chat = ChatService(model, '你是测试助手。', memory=self.store, platform='qq', memory_update_every=1)
         message = self.message('我喜欢冰美式')
         chat.generate(message)
         chat.record_reply(message, '好呀。')

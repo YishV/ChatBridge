@@ -33,6 +33,9 @@ class Settings:
     meme_recent_count: int = 5
     memory_enabled: bool = True
     memory_db: Path = Path('data/runtime/memory.sqlite3')
+    memory_update_every: int = 3
+    memory_summary_every: int = 30
+    memory_queue_size: int = 64
     voice_enabled: bool = False
     voice_name: str = "zh-CN-XiaoxiaoNeural"
     voice_max_chars: int = 120
@@ -45,6 +48,12 @@ class Settings:
     def __post_init__(self):
         if type(self.memory_enabled) is not bool:
             raise ValueError('长期记忆开关无效')
+        if type(self.memory_update_every) is not int or not 1 <= self.memory_update_every <= 50:
+            raise ValueError('长期记忆抽取间隔必须为 1 至 50')
+        if type(self.memory_summary_every) is not int or not 0 <= self.memory_summary_every <= 500:
+            raise ValueError('长期记忆摘要间隔必须为 0 至 500')
+        if type(self.memory_queue_size) is not int or not 1 <= self.memory_queue_size <= 1000:
+            raise ValueError('长期记忆队列大小必须为 1 至 1000')
         if (type(self.vision_enabled) is not bool or type(self.vision_window_seconds) is not int
                 or not 30 <= self.vision_window_seconds <= 300):
             raise ValueError('看图开关或关联时间窗口无效')
@@ -123,6 +132,9 @@ class Settings:
             meme_recent_count=int(os.getenv('WECHAT_AI_BRIDGE_MEME_RECENT_COUNT', '5')),
             memory_enabled=memory_enabled in ('true', '1'),
             memory_db=Path(os.getenv('WECHAT_AI_BRIDGE_MEMORY_DB', 'data/runtime/memory.sqlite3')),
+            memory_update_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY', '3')),
+            memory_summary_every=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY', '30')),
+            memory_queue_size=int(os.getenv('WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE', '64')),
             voice_enabled=voice_enabled in ('true', '1'),
             voice_name=os.getenv('WECHAT_AI_BRIDGE_VOICE_NAME', 'zh-CN-XiaoxiaoNeural').strip(),
             voice_max_chars=int(os.getenv('WECHAT_AI_BRIDGE_VOICE_MAX_CHARS', '120')),

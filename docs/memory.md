@@ -7,6 +7,12 @@ QQ 和微信私聊支持按用户保存长期记忆。群聊不读取、不注�
 ```dotenv
 WECHAT_AI_BRIDGE_MEMORY_ENABLED=true
 WECHAT_AI_BRIDGE_MEMORY_DB=data/runtime/memory.sqlite3
+# 每 N 轮私聊抽取一次，默认 3；1 表示每轮
+WECHAT_AI_BRIDGE_MEMORY_UPDATE_EVERY=3
+# 每 N 轮生成一次摘要，默认 30
+WECHAT_AI_BRIDGE_MEMORY_SUMMARY_EVERY=30
+# 后台任务队列上限，满了会丢弃并写日志
+WECHAT_AI_BRIDGE_MEMORY_QUEUE_SIZE=64
 ```
 
 修改 `.env` 后重启对应网关。QQ 和微信共用一个数据库，但用 `platform` 字段隔离。
@@ -31,7 +37,17 @@ WECHAT_AI_BRIDGE_MEMORY_DB=data/runtime/memory.sqlite3
 
 ## 自动记忆
 
-每轮私聊回复完成后，后台异步判断这轮有没有值得长期保存的信息：
+私聊回复完成后，任务进入一个有界队列，由**单个后台 worker 串行处理**：
+
+```text
+主聊天回复不受影响
+每 3 轮做一次记忆抽取（可配置）
+每 30 轮做一次摘要（可配置）
+模型失败写日志，不影响聊天
+队列满了丢弃新任务并告警，不无限开线程
+```
+
+每轮判断是否有值得长期保存的信息：
 
 ```text
 稳定偏好、身份、重要事件、约定、关系变化
@@ -61,7 +77,7 @@ WECHAT_AI_BRIDGE_MEMORY_DB=data/runtime/memory.sqlite3
 
 ## 摘要
 
-每 30 轮回复左右，后台把最近对话压缩成一段摘要，保存到 `conversation_summaries`。这样超过 50 条上下文后，较早的背景还在。
+默认每 30 轮回复，后台把最近对话压缩成一段摘要，保存到 `conversation_summaries`。这样超过 50 条上下文后，较早的背景还在。摘要和抽取共用同一个串行 worker。
 
 ## 数据表
 

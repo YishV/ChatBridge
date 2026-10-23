@@ -73,7 +73,10 @@ def create_processor(settings, store, *, history_groups=None, meme_catalog=_UNSE
         meme_catalog=meme_catalog,
         meme_cooldown_seconds=settings.meme_cooldown_seconds, meme_recent_count=settings.meme_recent_count,
         weather_client=create_weather_client(settings), vision=vision, voice_enabled=voice_enabled,
-        singing_enabled=singing_enabled, memory=memory, platform=platform)
+        singing_enabled=singing_enabled, memory=memory, platform=platform,
+        memory_update_every=settings.memory_update_every,
+        memory_summary_every=settings.memory_summary_every,
+        memory_queue_size=settings.memory_queue_size)
     return MessageProcessor(store, chat, cooldown_seconds=settings.cooldown_seconds,
         hourly_quota=settings.hourly_quota, participation_mode=settings.participation_mode,
         spontaneous_cooldown_seconds=settings.spontaneous_cooldown_seconds)

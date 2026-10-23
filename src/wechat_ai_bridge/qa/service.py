@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import secrets
-import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +12,8 @@ from typing import Protocol
 
 from wechat_ai_bridge.faces import FACE_IDS, QQ_FACES
 from wechat_ai_bridge.message import ChatReply, IncomingMessage
-from wechat_ai_bridge.memory.extractor import apply_memory_action, summarize_turns
+from wechat_ai_bridge.qa.memory import ChatMemory
+from wechat_ai_bridge.qa.singing import SingingAssistant
 from wechat_ai_bridge.weather.conversation import WeatherConversation
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -51,7 +51,9 @@ class ChatService:
                  history_store=None, history_groups=(), history_limit: int = 50,
                  meme_catalog=None, meme_cooldown_seconds: int = 60, meme_recent_count: int = 5,
                  weather_client=None, vision=None, voice_enabled: bool = False,
-                 singing_enabled: bool = False, memory=None, platform: str = 'wechat'):
+                 singing_enabled: bool = False, memory=None, platform: str = 'wechat',
+                 memory_worker=None, memory_update_every: int = 3,
+                 memory_summary_every: int = 30, memory_queue_size: int = 64):
         self.model = model
         self.system_prompt = system_prompt
         self.prompt_file = prompt_file
@@ -63,11 +65,10 @@ class ChatService:
             raise ValueError('memory_platform_invalid')
         self.voice_enabled = voice_enabled
         self.singing_enabled = singing_enabled
-        self.memory = memory
+        self.memory = None
         self.platform = platform
         self.qq_extras = platform == 'qq'
-        self._turn_count: dict[str, int] = {}
-        self._memory_command_ids: set[str] = set()
+        self.singing = SingingAssistant(model, self._load_system_prompt, platform)
         self.meme_catalog = meme_catalog
         self.meme_cooldown_seconds = meme_cooldown_seconds
         self.meme_recent_count = meme_recent_count
@@ -87,6 +88,14 @@ class ChatService:
         if history_store is not None:
             for group_id in history_groups:
                 self._restore(group_id)
+        if memory is not None:
+            self.memory = memory if isinstance(memory, ChatMemory) else ChatMemory(
+                memory, platform, model, worker=memory_worker,
+                update_every=memory_update_every,
+                summary_every=memory_summary_every,
+                queue_size=memory_queue_size,
+                clear_history=self._clear_memory_history,
+            )
 
     @staticmethod
     def _nickname(name) -> str | None:
@@ -127,109 +136,11 @@ class ChatService:
         alias = hmac.new(self._alias_key, identity, hashlib.sha256).hexdigest()[:12]
         return 'member_' + alias
 
-    def _memory_key(self, message: IncomingMessage) -> str:
-        return f'{message.group_id}'
-
-    def _memory_block(self, message: IncomingMessage) -> str:
-        if self.memory is None or message.is_group:
-            return ''
-        return self.memory.format_for_prompt(
-            self.platform, self._memory_key(message), message.text
-        )
-
-    def _handle_memory_command(self, message: IncomingMessage) -> str | None:
-        if self.memory is None or message.is_group:
-            return None
-        text = message.text.strip()
-        if any(text.startswith(prefix) for prefix in (
-                '清空我的记忆', '清空记忆', '查看记忆', '我的记忆',
-                '记住', '记一下', '记下来', '保存记忆', '帮我记住', '帮我记一下',
-                '忘记', '忘掉')):
-            self._memory_command_ids.add(message.message_id)
-        for prefix in ('清空我的记忆', '清空记忆'):
-            if text.startswith(prefix):
-                count = self.memory.clear(self.platform, self._memory_key(message))
-                if self.history_store is not None:
-                    self.history_store.clear_chat_history(message.group_id)
-                self._context.pop(message.group_id, None)
-                self._history_loaded.discard(message.group_id)
-                return f'好，已经清掉 {count} 条关于你的记忆和这段聊天记录。' if count else '好，这段聊天记录已经清掉了。'
-        for prefix in ('查看记忆', '我的记忆'):
-            if text.startswith(prefix):
-                items = self.memory.list(self.platform, self._memory_key(message), limit=20)
-                summary = self.memory.get_summary(self.platform, self._memory_key(message))
-                if not items and not summary:
-                    return '现在还没有关于你的长期记忆。'
-                lines = []
-                if summary:
-                    lines.append(f'摘要：{summary}')
-                lines.extend(f'- {item.content}' for item in items)
-                return ('我记得这些：\n' + '\n'.join(lines))[:800]
-        for prefix in ('记住', '记一下', '记下来', '保存记忆', '帮我记住', '帮我记一下'):
-            if text.startswith(prefix):
-                content = text[len(prefix):].lstrip('：:，, ').strip()
-                if not content:
-                    return '要记住什么？'
-                try:
-                    self.memory.add(
-                        self.platform, self._memory_key(message), 'note', content,
-                        confidence=1.0, importance=0.8,
-                        source_message_id=message.message_id,
-                    )
-                except ValueError:
-                    return '这条没记住，换个短一点的的说法吧。'
-                return f'好，记住了：{content[:200]}'
-        for prefix in ('忘记', '忘掉'):
-            if text.startswith(prefix):
-                query = text[len(prefix):].lstrip('：:，, ').strip()
-                if not query:
-                    return '要忘记什么？'
-                count = self.memory.delete(self.platform, self._memory_key(message), query)
-                return f'已经忘掉 {count} 条相关记忆。' if count else f'没找到关于「{query}」的记忆。'
-        return None
-
-    def _remember_async(self, message: IncomingMessage, reply: str) -> None:
-        if self.memory is None or message.is_group:
-            return
-        if message.message_id in self._memory_command_ids:
-            return
-        thread = threading.Thread(
-            target=self._remember, args=(message, reply), daemon=True,
-            name=f'memory-{message.message_id}',
-        )
-        thread.start()
-
-    def _remember(self, message: IncomingMessage, reply: str) -> None:
-        key = self._memory_key(message)
-        try:
-            apply_memory_action(
-                self.model, self.memory, self.platform, key,
-                message.text, reply, message.message_id,
-            )
-        except Exception:
-            return
-        self._maybe_summary(message)
-
-    def _maybe_summary(self, message: IncomingMessage) -> None:
-        if self.memory is None or message.is_group:
-            return
-        key = self._memory_key(message)
-        count = self._turn_count.get(key, 0) + 1
-        self._turn_count[key] = count
-        if count % 30 != 0:
-            return
-        recent = list(self._recent(message.group_id))[-30:]
-        if not recent:
-            return
-        try:
-            summary = summarize_turns(
-                self.model, self.memory.get_summary(self.platform, key),
-                [(turn.role, turn.content) for turn in recent],
-            )
-            if summary:
-                self.memory.save_summary(self.platform, key, summary, count)
-        except Exception:
-            return
+    def _clear_memory_history(self, message: IncomingMessage) -> None:
+        if self.history_store is not None:
+            self.history_store.clear_chat_history(message.group_id)
+        self._context.pop(message.group_id, None)
+        self._history_loaded.discard(message.group_id)
 
     def observe(self, message: IncomingMessage) -> None:
         self._restore(message.group_id)
@@ -268,81 +179,14 @@ class ChatService:
 
     def singing_ack(self, message: IncomingMessage, song_title: str, *,
                     random: bool = False) -> str | None:
-        """Generate a short, persona-consistent acknowledgement for a queued cover."""
-        try:
-            prompt = self._load_system_prompt()
-            if random:
-                situation = (
-                    f'用户没有指定歌名，系统从曲库随机选了《{song_title}》。'
-                    '不要暗示这是用户点的歌，可以说随机挑了一首；'
-                )
-            else:
-                situation = f'用户点了《{song_title}》。'
-            text = self.model.complete([
-                {'role': 'system', 'content': (
-                    prompt + '\n你刚收到一次 QQ 点歌，歌曲已经进入后台翻唱队列。'
-                    + situation +
-                    '用一句自然、短的中文接住这次点歌，可以傲娇、吐槽或期待；'
-                    '不要用“收到，开始翻唱”这种客服模板，不要声称已经唱完，'
-                    '不要发链接、文件路径或技术细节。只输出这句话。'
-                )},
-                {'role': 'user', 'content': f'这次要翻唱：《{song_title}》。'},
-            ])
-        except Exception:
-            return None
-        if not isinstance(text, str):
-            return None
-        text = ' '.join(text.split()).strip()[:120]
-        if not text or text.startswith('{') or text.startswith('['):
-            return None
-        return text
+        return self.singing.ack(message, song_title, random=random)
 
     def classify_singing(self, message: IncomingMessage) -> str | None:
-        """Return '', a song title, or None; exceptions mean classifier unavailable."""
         recent = '\n'.join(
             f'{turn.role}: {turn.content}'
             for turn in list(self._recent(message.group_id))[-6:]
         )
-        system = (
-            '你是 QQ 聊天机器人的点歌意图分类器。只判断最新一条用户消息是否在要求机器人'
-            '翻唱/点歌。只输出 JSON：'
-            '{"action":"cover","song":"歌名或空字符串","confidence":0到1} 或 '
-            '{"action":"none","confidence":0到1}。'
-            '只有明确要求机器人唱、翻唱、点一首、随机来一首，才算 cover。'
-            '讨论唱歌、评价歌曲、问机器人会不会唱、让其他人唱，都算 none。'
-            '没说歌名时 song 为空字符串。'
-        )
-        user = f'最近对话：\n{recent}\n最新消息：{message.text}'
-        try:
-            if hasattr(self.model, 'complete_json'):
-                raw = self.model.complete_json([
-                    {'role': 'system', 'content': system},
-                    {'role': 'user', 'content': user},
-                ])
-            else:
-                raw = self.model.complete([
-                    {'role': 'system', 'content': system},
-                    {'role': 'user', 'content': user},
-                ])
-            data = json.loads(raw)
-        except (ValueError, TypeError, UnicodeError, RecursionError):
-            raise
-        if not isinstance(data, dict):
-            return None
-        if data.get('action') != 'cover':
-            return None
-        try:
-            confidence = float(data.get('confidence', 0))
-        except (TypeError, ValueError):
-            return None
-        if confidence < 0.6:
-            return None
-        song = data.get('song')
-        if song is None or (isinstance(song, str) and song.strip().lower() in ('', 'null', 'none')):
-            return ''
-        if not isinstance(song, str):
-            return None
-        return song.strip()[:100]
+        return self.singing.classify(message, recent)
 
     def _meme_candidates(self, message: IncomingMessage):
         if self.meme_catalog is None:
@@ -359,7 +203,7 @@ class ChatService:
             return []
 
     def generate(self, message: IncomingMessage, *, model_call=None, guard=None) -> ChatReply:
-        command = self._handle_memory_command(message)
+        command = self.memory.handle_command(message) if self.memory is not None else None
         if command is not None:
             return ChatReply(command)
         call = model_call or (lambda method, *args, **kwargs: method(*args, **kwargs))
@@ -405,7 +249,7 @@ class ChatService:
             instruction = ('本条消息没有 @ 你。先判断是否适合接话，默认保持沉默；只返回 JSON 对象 '
                            '{"reply":null} 或 {"reply":"简短回复"}，不要输出其他内容。')
         history = list(self._recent(message.group_id))
-        memory_block = self._memory_block(message)
+        memory_block = self.memory.format(message) if self.memory is not None else ''
         ownership = {'current_speaker': self._member(message),
                      'assistant_reply_targets': [
                          {'history_index': index, 'reply_to': turn.member}
@@ -563,4 +407,9 @@ class ChatService:
         if text.strip():
             clean = text.strip()[:800]
             self._recent(message.group_id).append(_Turn(monotonic(), 'assistant', clean, self._member(message)))
-            self._remember_async(message, clean)
+            if self.memory is not None:
+                recent = tuple(
+                    (turn.role, turn.content)
+                    for turn in list(self._recent(message.group_id))[-30:]
+                )
+                self.memory.submit(message, clean, recent)
