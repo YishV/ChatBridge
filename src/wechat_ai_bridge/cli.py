@@ -342,7 +342,7 @@ def main() -> None:
     singing_worker.add_argument('--once', action='store_true', help='只处理一个任务')
     panel = commands.add_parser('panel', help='本机运行状态与私聊记忆管理面板')
     panel.add_argument('--host', default='127.0.0.1', help='只能绑定本机回环地址')
-    panel.add_argument('--port', type=int, default=8765, help='面板端口，默认 8765')
+    panel.add_argument('--port', type=int, default=8767, help='面板端口，默认 8767')
     contacts = commands.add_parser('contacts', help='本机列出微信联系人 wxid，用于私聊白名单')
     contacts.add_argument('--query', help='按 wxid、备注或昵称过滤')
     commands.add_parser("model-check", help="私有模型连通检查，不发送微信消息")

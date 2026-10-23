@@ -156,7 +156,7 @@ class PanelHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-def serve(settings: Settings, host: str = '127.0.0.1', port: int = 8765) -> None:
+def serve(settings: Settings, host: str = '127.0.0.1', port: int = 8767) -> None:
     if host not in ('127.0.0.1', 'localhost', '::1'):
         raise ValueError('panel host must bind to loopback')
     if not 1024 <= port <= 65535:
